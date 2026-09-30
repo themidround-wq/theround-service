@@ -57,3 +57,7 @@ Commit the file in `src/migrations/`. SQLite (dev only) just auto-syncs.
 | Saved round drawer | `GET /rounds/:id`, `GET /rounds/:id/audio` → `{url, expiresInSeconds}` (signed, ~15 min; use as `<audio src>`), `PATCH /rounds/:id` (bookmarked, reflection, note), `POST /rounds/:id/repeat` |
 
 Round lifecycle: `spun → in_progress → completed → saved`. Only saved rounds appear in history and stats.
+
+## API docs
+
+Swagger UI is served at `/api/docs` (raw OpenAPI JSON at `/api/docs-json`). Sign in via `POST /auth/google`, click **Authorize** and paste the `accessToken` to try the protected routes. It's enabled in every environment; gate it behind an env flag if you don't want it public in production.
