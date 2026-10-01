@@ -12,24 +12,46 @@ npm run start:dev
 
 SQLite and local-disk audio by default. Categories/topics/questions are seeded on first boot (`src/catalog/seed.ts`).
 
-## Deploy (Render + Neon + Cloudflare R2)
+## Deploy (Render + Neon)
 
 1. **Neon:** copy the *pooled* connection string (`...-pooler...?sslmode=require`).
-2. **R2:** create a private bucket and an Object Read & Write API token scoped to it.
+2. **Neon object storage:** create a private bucket and generate an S3 credential for it.
 3. **Render** (Web Service, Node): build `npm install && npm run build`, start `npm run start:prod`. Environment:
    ```
    NODE_ENV=production
    DB_TYPE=postgres
    DB_URL=<neon pooled url>
-   S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+   S3_ENDPOINT=https://<BUCKET_ENDPOINT>.storage.<region>.aws.neon.tech
    S3_BUCKET=<bucket>
    S3_ACCESS_KEY_ID=...
    S3_SECRET_ACCESS_KEY=...
    JWT_SECRET=<long random string>
    GOOGLE_CLIENT_ID=...
    CORS_ORIGIN=<front-end origin>
+   RESEND_API_KEY=...
+   RESEND_FROM="The Round <hello@gettheround.com>"
+   APP_URL=<web app origin, for email buttons>
    ```
 Migrations run automatically on boot when `DB_TYPE=postgres`.
+
+### Email
+
+Sent through Resend from `src/email/`, best-effort and never blocking the request:
+
+| Template | Sent when |
+| --- | --- |
+| `waitlist-success` | a new email joins via `POST /api/waitlist` |
+| `welcome` | a user's first Google sign-in |
+| `first-round` | a user saves their first round |
+| `milestone` | saved rounds reach 5, 10, 25, 50 or 100 |
+| `waitlist-invite` | not triggered yet; call `EmailService.sendWaitlistInvite` at launch |
+
+Templates share one layout in `src/email/templates/layout.ts`.
+
+```bash
+npm run email:preview                          # writes .preview/<template>.html
+npm run email:test -- [template] [recipient]   # defaults: all, delivered@resend.dev
+```
 
 ### Changing the schema
 

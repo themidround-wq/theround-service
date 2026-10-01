@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { OAuth2Client, type TokenPayload } from 'google-auth-library';
+import { EmailService } from '../email/email.service';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
   ) {}
 
   async loginWithGoogle(idToken: string) {
@@ -34,6 +36,8 @@ export class AuthService {
       name: payload.given_name ?? payload.name,
       pictureUrl: payload.picture,
     });
+    // Not awaited, so sign-in never waits on Resend; sendWelcome never rejects.
+    if (isNewUser) void this.email.sendWelcome(user.email, user.id, user.name);
     return {
       accessToken: await this.jwt.signAsync({ sub: user.id }),
       isNewUser,

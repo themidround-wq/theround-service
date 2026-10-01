@@ -167,9 +167,20 @@ export class AudioUrlResponse {
   /** Signed URL; use directly as `<audio src>`. */
   @ApiProperty({
     example:
-      'https://<account>.r2.cloudflarestorage.com/theround-audio/<userId>/<roundId>.webm?X-Amz-Signature=…',
+      'https://<endpoint>.storage.<region>.aws.neon.tech/theround/<userId>/<roundId>.webm?X-Amz-Signature=…',
   })
   url: string;
   @ApiProperty({ example: 900 })
   expiresInSeconds: number;
+}
+
+export class WaitlistResponse {
+  @ApiProperty({ example: 27 })
+  id: number;
+  /** Shown to the user: 1000 + id. */
+  @ApiProperty({ example: 1027 })
+  ticketNumber: number;
+  /** False when the email was already on the list. */
+  @ApiProperty({ example: true })
+  isNew: boolean;
 }

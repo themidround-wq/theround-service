@@ -3,11 +3,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UnauthorizedException } from '@nestjs/common';
+import { EmailService } from '../email/email.service';
 import { UsersModule } from '../users/users.module';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 
 const verifyIdToken = jest.fn();
+const sendWelcome = jest.fn();
 jest.mock('google-auth-library', () => ({
   OAuth2Client: jest.fn(() => ({ verifyIdToken })),
 }));
@@ -42,11 +44,15 @@ describe('AuthService.loginWithGoogle', () => {
         JwtModule.register({ secret: 'test', global: true }),
         UsersModule,
       ],
-      providers: [AuthService],
+      providers: [
+        AuthService,
+        { provide: EmailService, useValue: { sendWelcome } },
+      ],
     }).compile();
     auth = mod.get(AuthService);
     users = mod.get(UsersService);
     verifyIdToken.mockReset();
+    sendWelcome.mockReset();
   });
 
   it('prefills a new user from Google and returns token + safe user', async () => {
@@ -61,6 +67,11 @@ describe('AuthService.loginWithGoogle', () => {
       onboarded: false,
     });
     expect(res.user).not.toHaveProperty('googleId');
+    expect(sendWelcome).toHaveBeenCalledWith(
+      'nkem@example.com',
+      res.user.id,
+      'Nkem',
+    );
   });
 
   it('keeps an edited name on later logins but refreshes the photo', async () => {
@@ -74,6 +85,7 @@ describe('AuthService.loginWithGoogle', () => {
     expect(second.user.id).toBe(first.user.id);
     expect(second.user.name).toBe('Nk');
     expect(second.user.pictureUrl).toBe('https://pic/2.png');
+    expect(sendWelcome).toHaveBeenCalledTimes(1); // first sign-in only
   });
 
   it('rejects unverified emails and invalid tokens', async () => {

@@ -2,12 +2,15 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { CatalogService } from '../catalog/catalog.service';
+import { EmailService } from '../email/email.service';
+import { MILESTONES } from '../email/templates';
 import { StorageService } from '../storage/storage.service';
 import { UsersService } from '../users/users.service';
 import {
@@ -30,12 +33,15 @@ const EXT: Record<string, string> = {
 
 @Injectable()
 export class RoundsService {
+  private readonly logger = new Logger(RoundsService.name);
+
   constructor(
     @InjectRepository(Round) private readonly rounds: Repository<Round>,
     private readonly catalog: CatalogService,
     private readonly users: UsersService,
     private readonly storage: StorageService,
     private readonly jwt: JwtService,
+    private readonly email: EmailService,
   ) {}
 
   // ---- serialisation -------------------------------------------------------
@@ -161,7 +167,43 @@ export class RoundsService {
     round.note = dto.note?.trim() || null;
     round.status = 'saved';
     round.savedAt = new Date();
-    return this.toDto(await this.rounds.save(round));
+    const saved = await this.rounds.save(round);
+    // Not awaited: progress email must never slow down or fail the save.
+    void this.celebrate(userId, saved).catch((e) =>
+      this.logger.error(`Progress email for ${userId} failed: ${String(e)}`),
+    );
+    return this.toDto(saved);
+  }
+
+  /** Emails the first saved round and each milestone count after it. */
+  private async celebrate(userId: string, round: Round) {
+    const total = await this.rounds.count({
+      where: { user: { id: userId }, status: 'saved' },
+    });
+    if (total !== 1 && !(MILESTONES as readonly number[]).includes(total)) {
+      return;
+    }
+
+    const user = await this.users.findById(userId);
+    if (total === 1) {
+      await this.email.sendFirstRound(user.email, user.id, {
+        name: user.name,
+        category: round.category.name,
+        question: round.question.text,
+        spokenSeconds: round.spokenSeconds,
+        reflection: round.reflection,
+      });
+      return;
+    }
+
+    const s = await this.stats(userId);
+    await this.email.sendMilestone(user.email, user.id, {
+      name: user.name,
+      totalRounds: s.totalRounds,
+      speakingSeconds: s.speakingSeconds,
+      currentStreakDays: s.currentStreakDays,
+      mostPractised: s.mostPractised,
+    });
   }
 
   /** Discard a round ("Try another round" / close). Also deletes its audio. */
@@ -238,7 +280,7 @@ export class RoundsService {
   }
 
   /**
-   * Playable URL valid for ~15 minutes. Remote: a signed R2/S3 link. Local dev:
+   * Playable URL valid for ~15 minutes. Remote: a signed S3 link. Local dev:
    * a token-protected URL on this server, so `<audio src>` works either way.
    */
   async audioUrl(userId: string, id: string, origin: string) {

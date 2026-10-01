@@ -4,8 +4,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { EmailModule } from './email/email.module';
 import { RoundsModule } from './rounds/rounds.module';
 import { UsersModule } from './users/users.module';
+import { WaitlistModule } from './waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -32,7 +34,9 @@ import { UsersModule } from './users/users.module';
         };
       },
     }),
+    EmailModule,
     UsersModule,
+    WaitlistModule,
     AuthModule,
     CatalogModule,
     RoundsModule,

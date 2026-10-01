@@ -13,7 +13,7 @@ import { dirname, join, resolve } from 'path';
 const URL_TTL_SECONDS = 15 * 60;
 
 /**
- * Audio store. Uses an S3-compatible bucket (Cloudflare R2) when S3_* vars are
+ * Audio store. Uses an S3-compatible bucket (Neon object storage) when S3_* vars are
  * set, otherwise falls back to local disk for development.
  */
 @Injectable()
@@ -29,7 +29,7 @@ export class StorageService {
     const endpoint = config.get<string>('S3_ENDPOINT');
     this.s3 = endpoint
       ? new S3Client({
-          region: 'auto', // R2 ignores the region but the SDK requires one
+          region: 'auto', // the endpoint pins the region but the SDK requires one
           endpoint,
           forcePathStyle: true,
           credentials: {
@@ -67,7 +67,7 @@ export class StorageService {
     return key;
   }
 
-  /** Short-lived signed URL for a remote object (R2/S3 handles Range requests). */
+  /** Short-lived signed URL for a remote object (S3 handles Range requests). */
   signedUrl(key: string, contentType: string) {
     return getSignedUrl(
       this.s3!,
