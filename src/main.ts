@@ -1,3 +1,6 @@
+// Load .env before any module is imported: entity decorators (e.g.
+// WaitlistEntry) read DB_TYPE at import time, before ConfigModule runs.
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
