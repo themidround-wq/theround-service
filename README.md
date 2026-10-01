@@ -16,7 +16,7 @@ SQLite and local-disk audio by default. Categories/topics/questions are seeded o
 
 1. **Neon:** copy the *pooled* connection string (`...-pooler...?sslmode=require`).
 2. **Neon object storage:** create a private bucket and generate an S3 credential for it.
-3. **Render** (Web Service, Node): build `npm install && npm run build`, start `npm run start:prod`. Environment:
+3. **Render** (Web Service, Node): build `npm install && npm run build`, start `npm start` (runs the compiled `dist/`; never `nest start`, which compiles in memory and runs out of heap on small instances). Environment:
    ```
    NODE_ENV=production
    DB_TYPE=postgres
