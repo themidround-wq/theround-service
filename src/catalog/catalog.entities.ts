@@ -11,6 +11,8 @@ export class Category {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ unique: true }) name: string;
   @Column({ type: 'int' }) sortOrder: number;
+  /** Hidden categories are kept (old rounds point at them) but never spun. */
+  @Column({ type: 'boolean', default: true }) active: boolean;
   @OneToMany(() => Topic, (t) => t.category) topics: Topic[];
 }
 

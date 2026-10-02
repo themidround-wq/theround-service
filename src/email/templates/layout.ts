@@ -13,8 +13,8 @@ export const INK = '#14271a';
 export const MUTED = '#5b6358';
 export const RULE = '#d8d6c9';
 
-const SANS = "'Segoe UI', Arial, sans-serif";
-const DISPLAY = "'Poppins', 'Segoe UI', Arial, sans-serif";
+export const SANS = "'Segoe UI', Arial, sans-serif";
+export const DISPLAY = "'Poppins', 'Segoe UI', Arial, sans-serif";
 
 export const SOCIALS = [
   { label: 'Instagram', href: 'https://instagram.com/theround' },

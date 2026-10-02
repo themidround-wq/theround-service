@@ -27,4 +27,12 @@ export class WaitlistEntry {
     type: isPostgres ? 'timestamptz' : 'datetime',
   })
   createdAt: Date;
+
+  /** When an admin sent the launch invite email. */
+  @Column({
+    name: 'invited_at',
+    type: isPostgres ? 'timestamptz' : 'datetime',
+    nullable: true,
+  })
+  invitedAt: Date | null;
 }

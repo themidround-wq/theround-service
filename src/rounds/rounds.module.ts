@@ -12,5 +12,6 @@ import { RoundsService } from './rounds.service';
   imports: [TypeOrmModule.forFeature([Round]), CatalogModule, UsersModule],
   controllers: [RoundsController, LocalAudioController, MeController],
   providers: [RoundsService, StorageService],
+  exports: [RoundsService, StorageService],
 })
 export class RoundsModule {}

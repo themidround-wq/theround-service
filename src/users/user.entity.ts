@@ -61,6 +61,10 @@ export class User {
   @Column({ type: 'boolean', default: false })
   onboarded: boolean;
 
+  /** Set by an admin; a suspended user can't sign in or call the API. */
+  @Column({ type: Date, nullable: true })
+  suspendedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

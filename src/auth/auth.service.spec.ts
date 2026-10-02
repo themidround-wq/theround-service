@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UnauthorizedException } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
+import { SETTINGS } from '../settings/settings';
 import { UsersModule } from '../users/users.module';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
@@ -47,6 +49,17 @@ describe('AuthService.loginWithGoogle', () => {
       providers: [
         AuthService,
         { provide: EmailService, useValue: { sendWelcome } },
+        {
+          provide: SettingsService,
+          useValue: {
+            all: () =>
+              Promise.resolve(
+                Object.fromEntries(
+                  Object.entries(SETTINGS).map(([k, v]) => [k, v.default]),
+                ),
+              ),
+          },
+        },
       ],
     }).compile();
     auth = mod.get(AuthService);

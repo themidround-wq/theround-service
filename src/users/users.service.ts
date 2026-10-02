@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UpdateProfileDto } from './dto';
@@ -21,12 +25,15 @@ export class UsersService {
    * sign-ins never overwrite a name the user may have edited; only the photo
    * is refreshed.
    */
-  async upsertFromGoogle(profile: {
-    googleId: string;
-    email: string;
-    name?: string;
-    pictureUrl?: string;
-  }) {
+  async upsertFromGoogle(
+    profile: {
+      googleId: string;
+      email: string;
+      name?: string;
+      pictureUrl?: string;
+    },
+    opts: { allowCreate?: boolean; defaultResponseSeconds?: number } = {},
+  ) {
     const existing =
       (await this.repo.findOneBy({ googleId: profile.googleId })) ??
       (await this.repo.findOneBy({ email: profile.email }));
@@ -37,12 +44,19 @@ export class UsersService {
       }
       return { user: existing, isNewUser: false };
     }
+    // Sign-ups paused by an admin: existing accounts above still get in.
+    if (opts.allowCreate === false) {
+      throw new ForbiddenException('New sign-ups are paused');
+    }
     const user = await this.repo.save(
       this.repo.create({
         googleId: profile.googleId,
         email: profile.email,
         name: profile.name ?? null,
         pictureUrl: profile.pictureUrl ?? null,
+        ...(opts.defaultResponseSeconds
+          ? { defaultResponseSeconds: opts.defaultResponseSeconds }
+          : {}),
       }),
     );
     return { user, isNewUser: true };

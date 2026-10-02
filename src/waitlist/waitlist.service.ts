@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
 import { WaitlistEntry } from './waitlist.entity';
 
 const TICKET_OFFSET = 1000;
@@ -19,6 +20,7 @@ export class WaitlistService {
     @InjectRepository(WaitlistEntry)
     private readonly repo: Repository<WaitlistEntry>,
     private readonly email: EmailService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -27,6 +29,14 @@ export class WaitlistService {
    * used to re-trigger mail to it.
    */
   async join(email: string) {
+    // A closed waitlist still answers people who are already on it.
+    if (!(await this.settings.get('waitlist.open'))) {
+      const existing = await this.repo.findOneBy({ email });
+      if (!existing) throw new ForbiddenException('The waitlist is closed');
+      const id = Number(existing.id);
+      return { id, ticketNumber: TICKET_OFFSET + id, isNew: false };
+    }
+
     let isNew = true;
     try {
       await this.repo.insert({ email });

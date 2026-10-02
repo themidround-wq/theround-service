@@ -29,25 +29,45 @@ export class CatalogService implements OnModuleInit {
     }
   }
 
-  async overview() {
+  /**
+   * Categories that can be spun: active, with at least one topic that has a
+   * question. Admins can hide categories or leave them half-built, so the
+   * wheel never offers something it can't serve. The catalog is small, so
+   * filtering in memory is fine.
+   */
+  private async playable() {
     const categories = await this.categories.find({
       order: { sortOrder: 'ASC' },
+      relations: { topics: { questions: true } },
     });
+    return categories
+      .filter((c) => c.active)
+      .map((c) => ({
+        ...c,
+        topics: c.topics.filter((t) => t.questions.length > 0),
+      }))
+      .filter((c) => c.topics.length > 0);
+  }
+
+  async overview() {
+    const categories = await this.playable();
     return {
       categories: categories.map((c) => ({ id: c.id, name: c.name })),
-      topicCount: await this.topics.count(),
+      topicCount: categories.reduce((n, c) => n + c.topics.length, 0),
     };
   }
 
   listCategories() {
-    return this.categories.find({ order: { sortOrder: 'ASC' } });
+    return this.playable();
   }
 
   async randomTopicWithQuestion(categoryId: string) {
-    const topics = await this.topics.find({
-      where: { category: { id: categoryId } },
-      relations: { category: true },
-    });
+    const topics = (
+      await this.topics.find({
+        where: { category: { id: categoryId } },
+        relations: { category: true, questions: true },
+      })
+    ).filter((t) => t.questions.length > 0);
     const topic = topics[Math.floor(Math.random() * topics.length)];
     const qs = await this.questions.find({
       where: { topic: { id: topic.id } },

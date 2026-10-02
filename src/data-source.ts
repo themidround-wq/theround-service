@@ -8,6 +8,9 @@ export default new DataSource({
   entities: [
     __dirname + '/**/*.entity{.ts,.js}',
     __dirname + '/catalog/catalog.entities{.ts,.js}',
+    __dirname + '/admin/admin.entities{.ts,.js}',
+    __dirname + '/settings/settings{.ts,.js}',
+    __dirname + '/broadcasts/broadcast.entities{.ts,.js}',
   ],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
 });

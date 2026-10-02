@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { join } from 'path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { EmailModule } from './email/email.module';
 import { RoundsModule } from './rounds/rounds.module';
+import { SettingsModule } from './settings/settings.service';
 import { UsersModule } from './users/users.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
 
@@ -34,12 +36,14 @@ import { WaitlistModule } from './waitlist/waitlist.module';
         };
       },
     }),
+    SettingsModule,
     EmailModule,
     UsersModule,
     WaitlistModule,
     AuthModule,
     CatalogModule,
     RoundsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
