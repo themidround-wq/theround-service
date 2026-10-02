@@ -13,7 +13,12 @@ import {
   AdminController,
   AdminSettingsController,
 } from './admin.controllers';
-import { AdminAuditLog, AdminSession, AdminUser } from './admin.entities';
+import {
+  AdminAuditLog,
+  AdminPasswordReset,
+  AdminSession,
+  AdminUser,
+} from './admin.entities';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { AdminBroadcastsController } from './broadcasts.controller';
@@ -26,6 +31,7 @@ import { AuditService } from './audit.service';
       AdminUser,
       AdminSession,
       AdminAuditLog,
+      AdminPasswordReset,
       WaitlistEntry,
       User,
       Round,

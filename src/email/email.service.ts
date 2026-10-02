@@ -5,6 +5,7 @@ import { SettingsService } from '../settings/settings.service';
 import type { BooleanSettingKey } from '../settings/settings';
 import { emailContextFrom } from './email.context';
 import {
+  adminPasswordReset,
   EmailContext,
   firstRound,
   FirstRoundProps,
@@ -71,6 +72,20 @@ export class EmailService {
       to,
       waitlistInvite(this.ctx, { ticketNumber }),
       `waitlist-invite-${waitlistId}`,
+    );
+  }
+
+  /** Not gated by settings: an admin must always be able to recover access. */
+  sendAdminPasswordReset(
+    to: string,
+    resetId: string,
+    url: string,
+    minutes: number,
+  ) {
+    return this.send(
+      to,
+      adminPasswordReset(this.ctx, { url, minutes }),
+      `admin-reset-${resetId}`,
     );
   }
 

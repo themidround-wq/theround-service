@@ -1,7 +1,7 @@
 /**
  * Creates a dashboard admin, or resets an existing one's password.
  *
- *   npm run admin:create -- <email> [--name "Ani"] [--role owner|admin|viewer] [--reset] [--yes]
+ *   npm run admin:create -- <email> [--name "Ani"] [--role owner|admin|viewer] [--reset [--reset-2fa]] [--yes]
  *
  * Uses the database from .env (DB_TYPE / DB_URL, or local SQLite). Against
  * Postgres it shows the target and needs --yes, so production is never
@@ -13,6 +13,9 @@
  *
  * --reset: if the email exists, sets a new password, reactivates the account,
  * applies --role if given, and signs out all of its sessions.
+ *
+ * --reset-2fa: with --reset, also turns off two-factor (lost phone and lost
+ * recovery codes). They can set it up again after signing in.
  */
 import 'dotenv/config';
 import { randomBytes } from 'crypto';
@@ -29,7 +32,7 @@ import { hashPassword } from '../src/admin/password';
 function usage(msg?: string): never {
   if (msg) console.error(`\n  ${msg}\n`);
   console.error(
-    '  Usage: npm run admin:create -- <email> [--name "Name"] [--role owner|admin|viewer] [--reset] [--yes]\n',
+    '  Usage: npm run admin:create -- <email> [--name "Name"] [--role owner|admin|viewer] [--reset [--reset-2fa]] [--yes]\n',
   );
   process.exit(1);
 }
@@ -40,11 +43,13 @@ function parseArgs(argv: string[]) {
     name: '',
     role: undefined as AdminRole | undefined,
     reset: false,
+    reset2fa: false,
     yes: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--reset') out.reset = true;
+    else if (a === '--reset-2fa') out.reset2fa = true;
     else if (a === '--yes' || a === '-y') out.yes = true;
     else if (a === '--name') out.name = argv[++i] ?? '';
     else if (a === '--role') {
@@ -60,6 +65,8 @@ function parseArgs(argv: string[]) {
     else if (!out.email) out.email = a.trim().toLowerCase();
     else usage(`Unexpected argument ${a}`);
   }
+  if (out.reset2fa && !out.reset)
+    usage('--reset-2fa only works together with --reset.');
   if (!out.email) usage('Give the admin email.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email))
     usage(`"${out.email}" isn't a valid email.`);
@@ -155,6 +162,13 @@ async function main() {
       existing.active = true;
       if (args.role) existing.role = args.role;
       if (args.name) existing.name = args.name;
+      if (args.reset2fa) {
+        existing.totpSecret = null;
+        existing.totpPendingSecret = null;
+        existing.totpEnabledAt = null;
+        existing.totpLastStep = null;
+        existing.totpRecoveryCodes = null;
+      }
       admin = await admins.save(existing);
       await db
         .getRepository(AdminSession)
@@ -184,6 +198,7 @@ async function main() {
       details: JSON.stringify({
         role: admin.role,
         passwordReset: !!existing,
+        twoFactorReset: args.reset2fa,
         via: 'scripts/create-admin.ts',
       }),
       ip: null,
@@ -192,6 +207,11 @@ async function main() {
     console.log(
       `\n  ${existing ? 'Reset' : 'Created'} ${admin.role} ${admin.email} (${admin.name}).`,
     );
+    if (args.reset2fa) {
+      console.log(
+        '  Two-factor is off; they can set it up again under Settings.',
+      );
+    }
     if (chosen) {
       console.log('  Password: the one you set in ADMIN_NEW_PASSWORD.\n');
     } else {

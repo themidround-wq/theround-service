@@ -6,6 +6,7 @@ import { UsersService } from './users.service';
 @Module({
   imports: [TypeOrmModule.forFeature([User])],
   providers: [UsersService],
-  exports: [UsersService],
+  // TypeOrmModule re-exported so auth can update 2FA columns directly.
+  exports: [UsersService, TypeOrmModule],
 })
 export class UsersModule {}

@@ -27,12 +27,16 @@ SQLite and local-disk audio by default. Categories/topics/questions are seeded o
    S3_SECRET_ACCESS_KEY=...
    JWT_SECRET=<long random string>
    GOOGLE_CLIENT_ID=...
-   CORS_ORIGIN=<front-end origin>
    RESEND_API_KEY=...
    RESEND_FROM="The Round <hello@gettheround.com>"
-   APP_URL=<web app origin, for email buttons>
+   LANDING_URL=<landing page origin>
+   APP_URL=<user dashboard origin, also used for email buttons>
+   ADMIN_URL=<admin dashboard origin>
+   CORS_ORIGIN=<optional extra origins, comma-separated>
    ```
 Migrations run automatically on boot when `DB_TYPE=postgres`.
+
+CORS allows `LANDING_URL`, `APP_URL` and `ADMIN_URL`, plus anything in `CORS_ORIGIN`. If none are set, any origin is allowed, which is meant for local dev only.
 
 ### Email
 
@@ -80,19 +84,33 @@ Commit the file in `src/migrations/`. SQLite (dev only) just auto-syncs.
 
 Round lifecycle: `spun → in_progress → completed → saved`. Only saved rounds appear in history and stats.
 
+## Two-factor for app users (API only)
+
+Optional TOTP two-factor, same mechanics as admins (`src/common/two-factor.ts`). The app has no screens for it yet; everything below is live in the API.
+
+1. **Set up** (signed in): `POST /me/2fa/setup` → `{ secret, otpauthUri }`. Show `otpauthUri` as a QR code (issuer "The Round") and `secret` for manual entry.
+2. **Turn on:** `POST /me/2fa/enable` `{ code }` → `{ recoveryCodes }` (10, shown once).
+3. **Sign in:** `POST /auth/google` returns, for users with 2FA on, `{ twoFactorRequired: true, challengeToken }` *instead of* an access token. Send `POST /auth/2fa` `{ challengeToken, code }` (6-digit code or a recovery code) within 5 minutes to get the usual `{ twoFactorRequired: false, accessToken, isNewUser, user }`. Five wrong codes lock it for 15 minutes.
+4. **Manage:** `GET /me/2fa` (status, recovery codes left), `POST /me/2fa/recovery-codes` `{ code }` (needs an app code), `POST /me/2fa/disable` `{ code }` (app or recovery code; users have no password here).
+5. **Support:** `POST /admin/users/:id/reset-2fa` turns it off for someone who lost their phone (audited); also on the user's page in the admin dashboard.
+
+Every sign-in response now carries `twoFactorRequired` and `user.twoFactorEnabled`. Before any user turns 2FA on, the app must handle `twoFactorRequired: true` (no `accessToken` in that response).
+
 ## Admin API
 
 Everything under `/api/admin` backs the founder dashboard (`theround-admin`). Admins are separate from app users: they sign in with email + password and get a 12-hour bearer token tied to a session row, so logout and revocation take effect immediately.
 
 - **First owner:** set `ADMIN_EMAIL` and `ADMIN_PASSWORD` (10+ chars). The account is created on boot only while `admin_users` is empty; add everyone else from the dashboard's Team page.
-- **From the command line:** `npm run admin:create -- <email> [--name "Name"] [--role owner|admin|viewer] [--reset] [--yes]` creates an admin (owner by default) in the database from `.env` and prints a generated password once. Set `ADMIN_NEW_PASSWORD` to choose it instead. `--reset` sets a new password on an existing admin, restores access and signs out their sessions. Against Postgres it shows the target host and only writes with `--yes`.
+- **From the command line:** `npm run admin:create -- <email> [--name "Name"] [--role owner|admin|viewer] [--reset] [--yes]` creates an admin (owner by default) in the database from `.env` and prints a generated password once. Set `ADMIN_NEW_PASSWORD` to choose it instead. `--reset` sets a new password on an existing admin, restores access and signs out their sessions; add `--reset-2fa` to also turn off their two-factor. Against Postgres it shows the target host and only writes with `--yes`.
 - **Roles:** `viewer` (read-only), `admin` (all actions), `owner` (also manages the team).
 - **Login throttling:** 5 failed attempts locks that email for 15 minutes (in memory, per instance).
+- **Two-factor (TOTP):** any admin can turn it on under Settings (Google Authenticator, 1Password, Authy…). Sign-in then becomes password → short-lived challenge token (5 min, can't call the API) → 6-digit code or one of 10 single-use recovery codes. Secrets are AES-256-GCM encrypted with `TOTP_KEY` (falls back to `JWT_SECRET`; set a dedicated key so rotating `JWT_SECRET` doesn't break 2FA). If the key ever changes, codes are rejected (logged) rather than erroring. Codes can't be replayed; 5 wrong codes lock 2FA for 15 minutes. Owners can reset a teammate's 2FA from the Team page; for a locked-out owner use `npm run admin:create -- <email> --reset --reset-2fa --yes`.
+- **Forgot password:** `POST /admin/auth/forgot-password` always answers 204 (no account discovery) and, for an active admin, emails a single-use link to `ADMIN_URL/reset-password` that expires in 30 minutes (3 per hour max). Resetting signs out every session and keeps 2FA on. Without Resend configured, the link is logged in non-production only.
 - **Audit log:** every write, and every recording an admin plays, goes into `admin_audit_logs`.
 
 | Area | Endpoints |
 | --- | --- |
-| Auth | `POST /admin/auth/login`, `POST /admin/auth/logout`, `GET/PATCH /admin/auth/me`, `POST /admin/auth/password`, `GET /admin/auth/sessions`, `DELETE /admin/auth/sessions[/:id]` |
+| Auth | `POST /admin/auth/login` (→ `twoFactorRequired` + `challengeToken` when 2FA is on), `POST /admin/auth/login/2fa`, `POST /admin/auth/forgot-password`, `POST /admin/auth/reset-password`, `GET /admin/auth/2fa`, `POST /admin/auth/2fa/{setup,enable,disable,recovery-codes}`, `POST /admin/auth/logout`, `GET/PATCH /admin/auth/me`, `POST /admin/auth/password`, `GET /admin/auth/sessions`, `DELETE /admin/auth/sessions[/:id]` |
 | Overview | `GET /admin/overview?days=`, `GET /admin/activity?days=` (7, 14, 30, 90) |
 | Waitlist | `GET /admin/waitlist?search=&status=pending\|invited\|joined`, `GET /admin/waitlist/export` (CSV), `POST /admin/waitlist` `{emails}`, `POST /admin/waitlist/invite` `{ids}` (sends `waitlist-invite`), `DELETE /admin/waitlist/:id` |
 | Users | `GET /admin/users?search=&stage=&status=`, `GET /admin/users/:id`, `PATCH /admin/users/:id` `{suspended}`, `DELETE /admin/users/:id` |

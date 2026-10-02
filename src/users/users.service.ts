@@ -78,6 +78,7 @@ export class UsersService {
       defaultResponseSeconds: u.defaultResponseSeconds,
       soundCues: u.soundCues,
       onboarded: u.onboarded,
+      twoFactorEnabled: !!u.totpEnabledAt,
     };
   }
 

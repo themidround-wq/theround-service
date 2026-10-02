@@ -45,9 +45,15 @@ export class UserResponse {
   /** False until name, stage, avatar and goal are all set. */
   @ApiProperty({ example: false })
   onboarded: boolean;
+  /** Whether sign-in needs an authenticator code. */
+  @ApiProperty({ example: false })
+  twoFactorEnabled: boolean;
 }
 
 export class LoginResponse {
+  /** Always false here; see TwoFactorChallengeResponse for the true case. */
+  @ApiProperty({ example: false })
+  twoFactorRequired: boolean;
   /** Send as `Authorization: Bearer <accessToken>`. */
   @ApiProperty({
     example:
@@ -183,4 +189,44 @@ export class WaitlistResponse {
   /** False when the email was already on the list. */
   @ApiProperty({ example: true })
   isNew: boolean;
+}
+
+/** Returned by POST /auth/google instead of a session when 2FA is on. */
+export class TwoFactorChallengeResponse {
+  @ApiProperty({ example: true })
+  twoFactorRequired: boolean;
+  /** Send to POST /auth/2fa with the code. Valid for 5 minutes, sign-in only. */
+  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiJ9.eyJ0eXAiOiJ1c2VyXzJmYSJ9.sig' })
+  challengeToken: string;
+}
+
+export class TwoFactorStatusResponse {
+  @ApiProperty({ example: true })
+  enabled: boolean;
+  @ApiProperty({
+    nullable: true,
+    type: Date,
+    example: '2026-10-02T09:00:00.000Z',
+  })
+  enabledAt: Date | null;
+  @ApiProperty({ example: 10 })
+  recoveryCodesLeft: number;
+}
+
+export class TwoFactorSetupResponse {
+  /** Base32 key, for "enter a setup key" in the authenticator app. */
+  @ApiProperty({ example: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' })
+  secret: string;
+  /** Render as a QR code for the app to scan. */
+  @ApiProperty({
+    example:
+      'otpauth://totp/The%20Round%3Ankem%40example.com?secret=JBSW...&issuer=The+Round&algorithm=SHA1&digits=6&period=30',
+  })
+  otpauthUri: string;
+}
+
+export class RecoveryCodesResponse {
+  /** Shown once. Each works once in place of an app code. */
+  @ApiProperty({ type: [String], example: ['abcd-efgh-jk', 'mnpq-rstu-vw'] })
+  recoveryCodes: string[];
 }

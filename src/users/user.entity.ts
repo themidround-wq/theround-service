@@ -65,6 +65,27 @@ export class User {
   @Column({ type: Date, nullable: true })
   suspendedAt: Date | null;
 
+  // ---- optional two-factor (TOTP); API only until the app has screens ----
+
+  /** Encrypted base32 secret, set once the user confirms setup. */
+  @Column({ type: 'varchar', nullable: true })
+  totpSecret: string | null;
+
+  /** Encrypted secret during setup, until the first code confirms it. */
+  @Column({ type: 'varchar', nullable: true })
+  totpPendingSecret: string | null;
+
+  @Column({ type: Date, nullable: true })
+  totpEnabledAt: Date | null;
+
+  /** Last accepted time step, so a code can't be replayed. */
+  @Column({ type: 'int', nullable: true })
+  totpLastStep: number | null;
+
+  /** JSON array of sha256 hashes of unused recovery codes. */
+  @Column({ type: 'text', nullable: true })
+  totpRecoveryCodes: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

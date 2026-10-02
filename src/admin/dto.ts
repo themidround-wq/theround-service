@@ -42,6 +42,56 @@ export class AdminLoginDto {
   password: string;
 }
 
+export class LoginTwoFactorDto {
+  @ApiProperty({ description: 'challengeToken from the login response' })
+  @IsString()
+  @MaxLength(2000)
+  challengeToken: string;
+
+  @ApiProperty({
+    example: '123456',
+    description: 'App code, or a recovery code',
+  })
+  @IsString()
+  @MaxLength(40)
+  code: string;
+}
+
+export class TwoFactorCodeDto {
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @MaxLength(40)
+  code: string;
+}
+
+export class DisableTwoFactorDto extends TwoFactorCodeDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(200)
+  password: string;
+}
+
+export class ForgotPasswordDto {
+  @ApiProperty()
+  @Transform(lowerTrim)
+  @IsEmail()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(20)
+  @MaxLength(200)
+  token: string;
+
+  @ApiProperty({ minLength: 10 })
+  @IsString()
+  @MinLength(10)
+  @MaxLength(200)
+  password: string;
+}
+
 export class UpdateAdminProfileDto {
   @ApiProperty({ example: 'Ani' })
   @Transform(trim)
@@ -295,6 +345,13 @@ export class UpdateAdminDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Turns off their 2FA (lost phone) and signs them out.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  resetTwoFactor?: boolean;
 
   @ApiPropertyOptional({
     minLength: 10,

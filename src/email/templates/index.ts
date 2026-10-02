@@ -1,3 +1,4 @@
+import { adminPasswordReset } from './admin-password-reset';
 import { firstRound } from './first-round';
 import type { EmailContext } from './layout';
 import { milestone } from './milestone';
@@ -6,7 +7,14 @@ import { waitlistSuccess } from './waitlist-success';
 import { welcome } from './welcome';
 
 export type { EmailContext, RenderedEmail } from './layout';
-export { firstRound, milestone, waitlistInvite, waitlistSuccess, welcome };
+export {
+  adminPasswordReset,
+  firstRound,
+  milestone,
+  waitlistInvite,
+  waitlistSuccess,
+  welcome,
+};
 export { MILESTONES } from './milestone';
 export type { FirstRoundProps } from './first-round';
 export type { MilestoneProps } from './milestone';
@@ -16,6 +24,11 @@ export type { MilestoneProps } from './milestone';
  * `npm run email:test`.
  */
 export const SAMPLES = {
+  'admin-password-reset': (ctx: EmailContext) =>
+    adminPasswordReset(ctx, {
+      url: 'https://admin.gettheround.com/reset-password?token=sample',
+      minutes: 30,
+    }),
   'waitlist-success': (ctx: EmailContext) =>
     waitlistSuccess(ctx, { ticketNumber: 1042 }),
   'waitlist-invite': (ctx: EmailContext) =>

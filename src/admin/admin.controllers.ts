@@ -23,6 +23,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { AuthService } from '../auth/auth.service';
 import { SettingsService } from '../settings/settings.service';
 import type { AdminUser } from './admin.entities';
 import {
@@ -37,6 +38,11 @@ import { AuditService } from './audit.service';
 import {
   AddWaitlistDto,
   AdminLoginDto,
+  DisableTwoFactorDto,
+  ForgotPasswordDto,
+  LoginTwoFactorDto,
+  ResetPasswordDto,
+  TwoFactorCodeDto,
   AuditQueryDto,
   ChangePasswordDto,
   CreateAdminDto,
@@ -95,6 +101,94 @@ export class AdminAuthController {
         (req.headers['x-admin-user-agent'] as string | undefined) ??
         req.headers['user-agent'],
     });
+  }
+
+  @ApiOperation({ summary: 'Second sign-in step when 2FA is on' })
+  @ApiTooManyRequestsResponse({
+    description: 'Five wrong codes locks 2FA for 15 minutes',
+  })
+  @Post('login/2fa')
+  @HttpCode(200)
+  loginTwoFactor(@Body() dto: LoginTwoFactorDto, @Req() req: Request) {
+    return this.auth.loginTwoFactor(dto.challengeToken, dto.code, {
+      ip: clientIp(req),
+      userAgent:
+        (req.headers['x-admin-user-agent'] as string | undefined) ??
+        req.headers['user-agent'],
+    });
+  }
+
+  @ApiOperation({
+    summary: 'Email a password reset link',
+    description: 'Always 204, whether or not the email belongs to an admin.',
+  })
+  @Post('forgot-password')
+  @HttpCode(204)
+  forgot(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.auth.requestPasswordReset(dto.email, clientIp(req));
+  }
+
+  @ApiOperation({ summary: 'Set a new password from an emailed link' })
+  @Post('reset-password')
+  @HttpCode(200)
+  reset(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.auth.resetPassword(dto.token, dto.password, clientIp(req));
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(AdminGuard)
+  @Get('2fa')
+  twoFactor(@CurrentAdmin() admin: AdminUser) {
+    return this.auth.twoFactorStatus(admin);
+  }
+
+  @ApiOperation({
+    summary: 'Start 2FA setup',
+    description: 'Returns a secret and otpauth:// URI to show as a QR code.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(AdminGuard)
+  @Post('2fa/setup')
+  @HttpCode(200)
+  setupTwoFactor(@CurrentAdmin() admin: AdminUser) {
+    return this.auth.setupTwoFactor(admin);
+  }
+
+  @ApiOperation({
+    summary: 'Confirm 2FA with a code',
+    description: 'Returns 10 recovery codes, shown once.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(AdminGuard)
+  @Post('2fa/enable')
+  @HttpCode(200)
+  enableTwoFactor(
+    @CurrentAdmin() admin: AdminUser,
+    @Body() dto: TwoFactorCodeDto,
+  ) {
+    return this.auth.enableTwoFactor(admin, dto.code);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(AdminGuard)
+  @Post('2fa/disable')
+  @HttpCode(204)
+  disableTwoFactor(
+    @CurrentAdmin() admin: AdminUser,
+    @Body() dto: DisableTwoFactorDto,
+  ) {
+    return this.auth.disableTwoFactor(admin, dto.password, dto.code);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(AdminGuard)
+  @Post('2fa/recovery-codes')
+  @HttpCode(200)
+  regenerateRecoveryCodes(
+    @CurrentAdmin() admin: AdminUser,
+    @Body() dto: TwoFactorCodeDto,
+  ) {
+    return this.auth.regenerateRecoveryCodes(admin, dto.code);
   }
 
   @ApiBearerAuth()
@@ -181,7 +275,11 @@ export class AdminAuthController {
 @UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly userAuth: AuthService,
+    private readonly audit: AuditService,
+  ) {}
 
   @ApiOperation({ summary: 'KPIs, daily series and recent signups' })
   @Get('overview')
@@ -270,6 +368,22 @@ export class AdminController {
     @Body() dto: SuspendUserDto,
   ) {
     return this.admin.setSuspended(by, id, dto.suspended);
+  }
+
+  @ApiOperation({
+    summary: "Turn off a user's two-factor",
+    description:
+      'For support when someone lost their phone and recovery codes.',
+  })
+  @RequireRole('admin')
+  @Post('users/:id/reset-2fa')
+  @HttpCode(204)
+  async resetUserTwoFactor(
+    @CurrentAdmin() by: AdminUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.userAuth.resetTwoFactor(id);
+    await this.audit.record(by, 'user.2fa_reset', id);
   }
 
   @ApiOperation({ summary: 'Delete a user, their rounds and recordings' })

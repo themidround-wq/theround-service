@@ -41,6 +41,27 @@ export class AdminUser {
   @Column({ name: 'last_login_at', type: timestamp, nullable: true })
   lastLoginAt: Date | null;
 
+  // ---- two-factor (TOTP) ----
+
+  /** Encrypted base32 secret; set once 2FA is confirmed. */
+  @Column({ name: 'totp_secret', type: 'varchar', nullable: true })
+  totpSecret: string | null;
+
+  /** Encrypted secret shown during setup, until the first code confirms it. */
+  @Column({ name: 'totp_pending_secret', type: 'varchar', nullable: true })
+  totpPendingSecret: string | null;
+
+  @Column({ name: 'totp_enabled_at', type: timestamp, nullable: true })
+  totpEnabledAt: Date | null;
+
+  /** Last accepted time step, so a code can't be replayed. */
+  @Column({ name: 'totp_last_step', type: 'int', nullable: true })
+  totpLastStep: number | null;
+
+  /** JSON array of sha256 hashes of unused recovery codes. */
+  @Column({ name: 'totp_recovery_codes', type: 'text', nullable: true })
+  totpRecoveryCodes: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: timestamp }) createdAt: Date;
 }
 
@@ -100,6 +121,36 @@ export class AdminAuditLog {
 
   /** JSON-encoded details. */
   @Column({ type: 'text', nullable: true }) details: string | null;
+
+  @Column({ type: 'varchar', nullable: true }) ip: string | null;
+
+  @CreateDateColumn({ name: 'created_at', type: timestamp }) createdAt: Date;
+}
+
+/** Single-use "forgot password" links. Only the token's hash is stored. */
+@Entity('admin_password_resets')
+@Index('IDX_admin_password_resets_admin', ['admin', 'createdAt'])
+@Unique('UQ_admin_password_resets_token_hash', ['tokenHash'])
+export class AdminPasswordReset {
+  @PrimaryGeneratedColumn('uuid', {
+    primaryKeyConstraintName: 'PK_admin_password_resets_id',
+  })
+  id: string;
+
+  @ManyToOne(() => AdminUser, { onDelete: 'CASCADE', nullable: false })
+  @JoinColumn({
+    name: 'admin_id',
+    foreignKeyConstraintName: 'FK_admin_password_resets_admin_id',
+  })
+  admin: AdminUser;
+
+  @Column({ name: 'token_hash', type: 'varchar' })
+  tokenHash: string;
+
+  @Column({ name: 'expires_at', type: timestamp }) expiresAt: Date;
+
+  @Column({ name: 'used_at', type: timestamp, nullable: true })
+  usedAt: Date | null;
 
   @Column({ type: 'varchar', nullable: true }) ip: string | null;
 
