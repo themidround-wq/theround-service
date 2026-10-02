@@ -17,7 +17,11 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
@@ -63,6 +67,34 @@ import {
   UpdateSettingsDto,
   UpdateTopicDto,
 } from './dto';
+import {
+  AudioUrlResponse,
+  IdName,
+  QuestionResponse,
+  RecoveryCodesResponse,
+  TwoFactorSetupResponse,
+  TwoFactorStatusResponse,
+} from '../common/api.response';
+import {
+  ActivityResponse,
+  AddWaitlistResponse,
+  AdminCategoryResponse,
+  AdminLoginResponse,
+  AdminResponse,
+  AdminRoundListResponse,
+  AdminSessionInfoResponse,
+  AdminSessionResponse,
+  AdminUserDetailResponse,
+  AdminUserListResponse,
+  AdminUserResponse,
+  AdminWaitlistListResponse,
+  AuditListResponse,
+  CategoryResponse,
+  InviteWaitlistResponse,
+  OverviewResponse,
+  PasswordResetResponse,
+  SettingResponse,
+} from './admin.response';
 
 const csvCell = (v: string | number | Date | null) => {
   const s = v instanceof Date ? v.toISOString() : String(v ?? '');
@@ -88,6 +120,7 @@ export class AdminAuthController {
     summary: 'Sign in to the admin dashboard',
     description: 'Returns a 12-hour bearer token tied to a revocable session.',
   })
+  @ApiOkResponse({ type: AdminLoginResponse })
   @ApiUnauthorizedResponse({ description: 'Wrong email or password' })
   @ApiTooManyRequestsResponse({
     description: 'Five failed attempts locks the email for 15 minutes',
@@ -104,6 +137,7 @@ export class AdminAuthController {
   }
 
   @ApiOperation({ summary: 'Second sign-in step when 2FA is on' })
+  @ApiOkResponse({ type: AdminSessionResponse })
   @ApiTooManyRequestsResponse({
     description: 'Five wrong codes locks 2FA for 15 minutes',
   })
@@ -122,6 +156,7 @@ export class AdminAuthController {
     summary: 'Email a password reset link',
     description: 'Always 204, whether or not the email belongs to an admin.',
   })
+  @ApiNoContentResponse()
   @Post('forgot-password')
   @HttpCode(204)
   forgot(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
@@ -129,12 +164,15 @@ export class AdminAuthController {
   }
 
   @ApiOperation({ summary: 'Set a new password from an emailed link' })
+  @ApiOkResponse({ type: PasswordResetResponse })
   @Post('reset-password')
   @HttpCode(200)
   reset(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     return this.auth.resetPassword(dto.token, dto.password, clientIp(req));
   }
 
+  @ApiOperation({ summary: 'Two-factor status' })
+  @ApiOkResponse({ type: TwoFactorStatusResponse })
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Get('2fa')
@@ -146,6 +184,7 @@ export class AdminAuthController {
     summary: 'Start 2FA setup',
     description: 'Returns a secret and otpauth:// URI to show as a QR code.',
   })
+  @ApiOkResponse({ type: TwoFactorSetupResponse })
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Post('2fa/setup')
@@ -158,6 +197,7 @@ export class AdminAuthController {
     summary: 'Confirm 2FA with a code',
     description: 'Returns 10 recovery codes, shown once.',
   })
+  @ApiOkResponse({ type: RecoveryCodesResponse })
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Post('2fa/enable')
@@ -169,6 +209,11 @@ export class AdminAuthController {
     return this.auth.enableTwoFactor(admin, dto.code);
   }
 
+  @ApiOperation({
+    summary: 'Turn off 2FA',
+    description: 'Needs your password and a current code.',
+  })
+  @ApiNoContentResponse()
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Post('2fa/disable')
@@ -180,6 +225,11 @@ export class AdminAuthController {
     return this.auth.disableTwoFactor(admin, dto.password, dto.code);
   }
 
+  @ApiOperation({
+    summary: 'Replace recovery codes',
+    description: 'Needs a current app code. The old codes stop working.',
+  })
+  @ApiOkResponse({ type: RecoveryCodesResponse })
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Post('2fa/recovery-codes')
@@ -191,6 +241,8 @@ export class AdminAuthController {
     return this.auth.regenerateRecoveryCodes(admin, dto.code);
   }
 
+  @ApiOperation({ summary: 'Sign out this session' })
+  @ApiNoContentResponse()
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Post('logout')
@@ -199,6 +251,8 @@ export class AdminAuthController {
     return this.auth.logout(admin, sid);
   }
 
+  @ApiOperation({ summary: 'The signed-in admin' })
+  @ApiOkResponse({ type: AdminResponse })
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Get('me')
@@ -206,6 +260,8 @@ export class AdminAuthController {
     return this.auth.toDto(admin);
   }
 
+  @ApiOperation({ summary: 'Change own name' })
+  @ApiOkResponse({ type: AdminResponse })
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Patch('me')
@@ -220,6 +276,7 @@ export class AdminAuthController {
     summary: 'Change own password',
     description: 'Signs out every other session.',
   })
+  @ApiNoContentResponse()
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Post('password')
@@ -237,6 +294,8 @@ export class AdminAuthController {
     );
   }
 
+  @ApiOperation({ summary: 'Own active sessions' })
+  @ApiOkResponse({ type: [AdminSessionInfoResponse] })
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Get('sessions')
@@ -244,6 +303,8 @@ export class AdminAuthController {
     return this.auth.listSessions(admin.id, sid);
   }
 
+  @ApiOperation({ summary: 'Sign out one session' })
+  @ApiNoContentResponse()
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Delete('sessions/:id')
@@ -256,6 +317,7 @@ export class AdminAuthController {
   }
 
   @ApiOperation({ summary: 'Sign out everywhere else' })
+  @ApiNoContentResponse()
   @ApiBearerAuth()
   @UseGuards(AdminGuard)
   @Delete('sessions')
@@ -282,12 +344,14 @@ export class AdminController {
   ) {}
 
   @ApiOperation({ summary: 'KPIs, daily series and recent signups' })
+  @ApiOkResponse({ type: OverviewResponse })
   @Get('overview')
   overview(@Query() q: RangeQueryDto) {
     return this.admin.overview(q.days);
   }
 
   @ApiOperation({ summary: 'Practice funnel, reflections and category mix' })
+  @ApiOkResponse({ type: ActivityResponse })
   @Get('activity')
   activity(@Query() q: RangeQueryDto) {
     return this.admin.activity(q.days);
@@ -295,11 +359,19 @@ export class AdminController {
 
   // waitlist
 
+  @ApiOperation({
+    summary: 'List waitlist entries',
+    description: 'Newest first. Filter by status or search by email.',
+  })
+  @ApiOkResponse({ type: AdminWaitlistListResponse })
   @Get('waitlist')
   waitlist(@Query() q: ListWaitlistDto) {
     return this.admin.listWaitlist(q);
   }
 
+  @ApiOperation({ summary: 'Download the whole waitlist as CSV' })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ schema: { type: 'string' } })
   @Get('waitlist/export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="theround-waitlist.csv"')
@@ -318,6 +390,7 @@ export class AdminController {
   }
 
   @ApiOperation({ summary: 'Add emails by hand (no confirmation email)' })
+  @ApiOkResponse({ type: AddWaitlistResponse })
   @RequireRole('admin')
   @Post('waitlist')
   @HttpCode(200)
@@ -326,6 +399,7 @@ export class AdminController {
   }
 
   @ApiOperation({ summary: 'Send the launch invite email' })
+  @ApiOkResponse({ type: InviteWaitlistResponse })
   @RequireRole('admin')
   @Post('waitlist/invite')
   @HttpCode(200)
@@ -333,6 +407,8 @@ export class AdminController {
     return this.admin.inviteWaitlist(by, dto.ids);
   }
 
+  @ApiOperation({ summary: 'Remove a waitlist entry' })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('waitlist/:id')
   @HttpCode(204)
@@ -345,11 +421,19 @@ export class AdminController {
 
   // users
 
+  @ApiOperation({
+    summary: 'List users',
+    description:
+      'Newest first, with saved-round counts. Filter by stage or status, or search by name or email.',
+  })
+  @ApiOkResponse({ type: AdminUserListResponse })
   @Get('users')
   users(@Query() q: ListUsersDto) {
     return this.admin.listUsers(q);
   }
 
+  @ApiOperation({ summary: 'One user, with stats and their 20 latest rounds' })
+  @ApiOkResponse({ type: AdminUserDetailResponse })
   @Get('users/:id')
   user(@Param('id', ParseUUIDPipe) id: string) {
     return this.admin.getUser(id);
@@ -360,6 +444,7 @@ export class AdminController {
     description:
       'A suspended user is refused on sign-in and on every API call.',
   })
+  @ApiOkResponse({ type: AdminUserResponse })
   @RequireRole('admin')
   @Patch('users/:id')
   suspend(
@@ -375,6 +460,7 @@ export class AdminController {
     description:
       'For support when someone lost their phone and recovery codes.',
   })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Post('users/:id/reset-2fa')
   @HttpCode(204)
@@ -387,6 +473,7 @@ export class AdminController {
   }
 
   @ApiOperation({ summary: 'Delete a user, their rounds and recordings' })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('users/:id')
   @HttpCode(204)
@@ -399,6 +486,12 @@ export class AdminController {
 
   // rounds
 
+  @ApiOperation({
+    summary: 'List practice rounds',
+    description:
+      'Across all users, newest first. Filter by status, category or user, or search by email, topic or question.',
+  })
+  @ApiOkResponse({ type: AdminRoundListResponse })
   @Get('rounds')
   rounds(@Query() q: ListAdminRoundsDto) {
     return this.admin.listRounds(q);
@@ -408,6 +501,7 @@ export class AdminController {
     summary: 'Signed URL for a recording',
     description: 'Every listen is written to the audit log.',
   })
+  @ApiOkResponse({ type: AudioUrlResponse })
   @RequireRole('admin')
   @Get('rounds/:id/audio')
   audio(
@@ -422,6 +516,8 @@ export class AdminController {
     );
   }
 
+  @ApiOperation({ summary: 'Delete a round and its recording' })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('rounds/:id')
   @HttpCode(204)
@@ -437,11 +533,17 @@ export class AdminController {
   @ApiOperation({
     summary: 'Categories → topics → questions, with practice counts',
   })
+  @ApiOkResponse({ type: [AdminCategoryResponse] })
   @Get('catalog')
   catalog() {
     return this.admin.catalog();
   }
 
+  @ApiOperation({
+    summary: 'Add a category',
+    description: 'It goes at the end of the wheel.',
+  })
+  @ApiCreatedResponse({ type: CategoryResponse })
   @RequireRole('admin')
   @Post('catalog/categories')
   createCategory(
@@ -451,6 +553,8 @@ export class AdminController {
     return this.admin.createCategory(by, dto);
   }
 
+  @ApiOperation({ summary: 'Reorder the wheel' })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Put('catalog/categories/order')
   @HttpCode(204)
@@ -458,6 +562,8 @@ export class AdminController {
     return this.admin.reorderCategories(by, dto.ids);
   }
 
+  @ApiOperation({ summary: 'Rename, hide or show a category' })
+  @ApiOkResponse({ type: CategoryResponse })
   @RequireRole('admin')
   @Patch('catalog/categories/:id')
   updateCategory(
@@ -468,6 +574,11 @@ export class AdminController {
     return this.admin.updateCategory(by, id, dto);
   }
 
+  @ApiOperation({
+    summary: 'Delete a category',
+    description: '409 once any round uses it; hide it instead.',
+  })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('catalog/categories/:id')
   @HttpCode(204)
@@ -478,12 +589,16 @@ export class AdminController {
     return this.admin.deleteCategory(by, id);
   }
 
+  @ApiOperation({ summary: 'Add a topic' })
+  @ApiCreatedResponse({ type: IdName })
   @RequireRole('admin')
   @Post('catalog/topics')
   createTopic(@CurrentAdmin() by: AdminUser, @Body() dto: CreateTopicDto) {
     return this.admin.createTopic(by, dto);
   }
 
+  @ApiOperation({ summary: 'Rename a topic' })
+  @ApiOkResponse({ type: IdName })
   @RequireRole('admin')
   @Patch('catalog/topics/:id')
   updateTopic(
@@ -494,6 +609,11 @@ export class AdminController {
     return this.admin.updateTopic(by, id, dto.name);
   }
 
+  @ApiOperation({
+    summary: 'Delete a topic',
+    description: '409 once any round uses it.',
+  })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('catalog/topics/:id')
   @HttpCode(204)
@@ -504,6 +624,8 @@ export class AdminController {
     return this.admin.deleteTopic(by, id);
   }
 
+  @ApiOperation({ summary: 'Add a question' })
+  @ApiCreatedResponse({ type: QuestionResponse })
   @RequireRole('admin')
   @Post('catalog/questions')
   createQuestion(
@@ -513,6 +635,8 @@ export class AdminController {
     return this.admin.createQuestion(by, dto);
   }
 
+  @ApiOperation({ summary: 'Edit a question' })
+  @ApiOkResponse({ type: QuestionResponse })
   @RequireRole('admin')
   @Patch('catalog/questions/:id')
   updateQuestion(
@@ -523,6 +647,11 @@ export class AdminController {
     return this.admin.updateQuestion(by, id, dto.text);
   }
 
+  @ApiOperation({
+    summary: 'Delete a question',
+    description: '409 once any round uses it; edit it instead.',
+  })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('catalog/questions/:id')
   @HttpCode(204)
@@ -547,11 +676,19 @@ export class AdminSettingsController {
     private readonly auth: AdminAuthService,
   ) {}
 
+  @ApiOperation({ summary: 'Runtime settings and their current values' })
+  @ApiOkResponse({ type: [SettingResponse] })
   @Get('settings')
   getSettings() {
     return this.settings.describe();
   }
 
+  @ApiOperation({
+    summary: 'Change settings',
+    description:
+      'Send only the keys to change. Every key is checked before any is saved.',
+  })
+  @ApiOkResponse({ type: [SettingResponse] })
   @RequireRole('admin')
   @Patch('settings')
   async updateSettings(
@@ -563,22 +700,36 @@ export class AdminSettingsController {
     return result;
   }
 
+  @ApiOperation({
+    summary: 'Audit log, newest first',
+    description: 'Filter by action prefix, e.g. `waitlist` or `auth.login`.',
+  })
+  @ApiOkResponse({ type: AuditListResponse })
   @Get('audit')
   auditLog(@Query() q: AuditQueryDto) {
     return this.audit.list(q);
   }
 
+  @ApiOperation({ summary: 'List admins' })
+  @ApiOkResponse({ type: [AdminResponse] })
   @Get('team')
   team() {
     return this.auth.listAdmins();
   }
 
+  @ApiOperation({ summary: 'Add an admin', description: 'Owners only.' })
+  @ApiCreatedResponse({ type: AdminResponse })
   @RequireRole('owner')
   @Post('team')
   createAdmin(@CurrentAdmin() by: AdminUser, @Body() dto: CreateAdminDto) {
     return this.auth.createAdmin(by, dto);
   }
 
+  @ApiOperation({
+    summary: "Change an admin's role, access, password or 2FA",
+    description: 'Owners only. There must always be at least one active owner.',
+  })
+  @ApiOkResponse({ type: AdminResponse })
   @RequireRole('owner')
   @Patch('team/:id')
   updateAdmin(
@@ -589,6 +740,8 @@ export class AdminSettingsController {
     return this.auth.updateAdmin(by, id, dto);
   }
 
+  @ApiOperation({ summary: 'Remove an admin', description: 'Owners only.' })
+  @ApiNoContentResponse()
   @RequireRole('owner')
   @Delete('team/:id')
   @HttpCode(204)

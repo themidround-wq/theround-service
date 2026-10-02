@@ -11,7 +11,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   AudienceQueryDto,
   BroadcastContentDto,
@@ -26,6 +33,18 @@ import type { AdminUser } from './admin.entities';
 import { AdminGuard, CurrentAdmin, RequireRole } from './admin.guard';
 import { AuditService } from './audit.service';
 import { PageQueryDto } from './dto';
+import {
+  AddUnsubscribeResponse,
+  AudienceResponse,
+  BroadcastListResponse,
+  BroadcastRecipientListResponse,
+  BroadcastResponse,
+  BroadcastSummaryResponse,
+  RenderedEmailResponse,
+  RetryResponse,
+  TestSendResponse,
+  UnsubscribeListResponse,
+} from './admin.response';
 
 @ApiTags('Admin · Newsletters')
 @ApiBearerAuth()
@@ -37,11 +56,22 @@ export class AdminBroadcastsController {
     private readonly audit: AuditService,
   ) {}
 
+  @ApiOperation({
+    summary: 'List newsletters',
+    description: 'Most recently edited first. Filter by status.',
+  })
+  @ApiOkResponse({ type: BroadcastListResponse })
   @Get('broadcasts')
   list(@Query() q: ListBroadcastsDto) {
     return this.broadcasts.list(q);
   }
 
+  @ApiOperation({
+    summary: 'Totals for the summary tiles',
+    description:
+      'Sends in the last 30 days, scheduled, drafts and unsubscribes.',
+  })
+  @ApiOkResponse({ type: BroadcastSummaryResponse })
   @Get('broadcasts/summary')
   summary() {
     return this.broadcasts.summary();
@@ -52,12 +82,14 @@ export class AdminBroadcastsController {
     description:
       'Counts leave out unsubscribed addresses, except for maintenance notices.',
   })
+  @ApiOkResponse({ type: [AudienceResponse] })
   @Get('broadcasts/audiences')
   audiences(@Query() q: AudienceQueryDto) {
     return this.broadcasts.audiences(q.kind);
   }
 
   @ApiOperation({ summary: 'Render an email from unsaved editor content' })
+  @ApiOkResponse({ type: RenderedEmailResponse })
   @Post('broadcasts/preview')
   @HttpCode(200)
   preview(@CurrentAdmin() admin: AdminUser, @Body() dto: BroadcastContentDto) {
@@ -75,11 +107,19 @@ export class AdminBroadcastsController {
     );
   }
 
+  @ApiOperation({ summary: 'One newsletter, with its content' })
+  @ApiOkResponse({ type: BroadcastResponse })
   @Get('broadcasts/:id')
   get(@Param('id', ParseUUIDPipe) id: string) {
     return this.broadcasts.get(id);
   }
 
+  @ApiOperation({
+    summary: 'Who a newsletter goes to',
+    description:
+      'The snapshot taken when sending started. Filter by status or search by email.',
+  })
+  @ApiOkResponse({ type: BroadcastRecipientListResponse })
   @Get('broadcasts/:id/recipients')
   recipients(
     @Param('id', ParseUUIDPipe) id: string,
@@ -88,6 +128,8 @@ export class AdminBroadcastsController {
     return this.broadcasts.listRecipients(id, q);
   }
 
+  @ApiOperation({ summary: 'Create a draft' })
+  @ApiCreatedResponse({ type: BroadcastResponse })
   @RequireRole('admin')
   @Post('broadcasts')
   async create(
@@ -101,6 +143,8 @@ export class AdminBroadcastsController {
     return b;
   }
 
+  @ApiOperation({ summary: 'Edit a draft or scheduled newsletter' })
+  @ApiOkResponse({ type: BroadcastResponse })
   @RequireRole('admin')
   @Patch('broadcasts/:id')
   update(
@@ -115,6 +159,7 @@ export class AdminBroadcastsController {
     summary: 'Send a [Test] copy',
     description: 'To your own email unless `to` is given (max 5).',
   })
+  @ApiOkResponse({ type: TestSendResponse })
   @RequireRole('admin')
   @Post('broadcasts/:id/test')
   @HttpCode(200)
@@ -129,6 +174,11 @@ export class AdminBroadcastsController {
     return r;
   }
 
+  @ApiOperation({
+    summary: 'Schedule for later',
+    description: 'At least a minute from now and within the next year.',
+  })
+  @ApiOkResponse({ type: BroadcastResponse })
   @RequireRole('admin')
   @Post('broadcasts/:id/schedule')
   @HttpCode(200)
@@ -150,6 +200,7 @@ export class AdminBroadcastsController {
     description:
       'Snapshots the audience, then sends in batches of 100 in the background.',
   })
+  @ApiOkResponse({ type: BroadcastResponse })
   @RequireRole('admin')
   @Post('broadcasts/:id/send')
   @HttpCode(200)
@@ -165,6 +216,12 @@ export class AdminBroadcastsController {
     return b;
   }
 
+  @ApiOperation({
+    summary: 'Cancel a send',
+    description:
+      'A scheduled newsletter goes back to draft; one that is sending stops after the current batch.',
+  })
+  @ApiOkResponse({ type: BroadcastResponse })
   @RequireRole('admin')
   @Post('broadcasts/:id/cancel')
   @HttpCode(200)
@@ -181,6 +238,7 @@ export class AdminBroadcastsController {
   }
 
   @ApiOperation({ summary: 'Re-send to the recipients that failed' })
+  @ApiOkResponse({ type: RetryResponse })
   @RequireRole('admin')
   @Post('broadcasts/:id/retry')
   @HttpCode(200)
@@ -193,6 +251,8 @@ export class AdminBroadcastsController {
     return r;
   }
 
+  @ApiOperation({ summary: 'Copy into a new draft' })
+  @ApiCreatedResponse({ type: BroadcastResponse })
   @RequireRole('admin')
   @Post('broadcasts/:id/duplicate')
   async duplicate(
@@ -202,6 +262,11 @@ export class AdminBroadcastsController {
     return this.broadcasts.duplicate(id, by.email);
   }
 
+  @ApiOperation({
+    summary: 'Delete a draft or cancelled newsletter',
+    description: 'Sent newsletters stay as a record.',
+  })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('broadcasts/:id')
   @HttpCode(204)
@@ -215,6 +280,11 @@ export class AdminBroadcastsController {
 
   // unsubscribes
 
+  @ApiOperation({
+    summary: 'List unsubscribed addresses',
+    description: 'Newest first. Search by email.',
+  })
+  @ApiOkResponse({ type: UnsubscribeListResponse })
   @Get('unsubscribes')
   unsubscribes(@Query() q: PageQueryDto) {
     return this.broadcasts.listUnsubscribes(q);
@@ -224,6 +294,7 @@ export class AdminBroadcastsController {
     summary:
       'Unsubscribe someone who asked by other means (e.g. replied to an email)',
   })
+  @ApiOkResponse({ type: AddUnsubscribeResponse })
   @RequireRole('admin')
   @Post('unsubscribes')
   @HttpCode(200)
@@ -237,6 +308,7 @@ export class AdminBroadcastsController {
   }
 
   @ApiOperation({ summary: 'Resubscribe — only when the person asked for it' })
+  @ApiNoContentResponse()
   @RequireRole('admin')
   @Delete('unsubscribes/:email')
   @HttpCode(204)
