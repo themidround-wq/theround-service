@@ -125,6 +125,7 @@ export class EmailService {
     to: string,
     email: RenderedEmail,
     idempotencyKey: string,
+    headers?: Record<string, string>,
   ): Promise<SendOutcome> {
     if (!this.resend || !this.from) {
       this.logger.log(`Skipped "${email.subject}" to ${to} (email disabled)`);
@@ -142,10 +143,7 @@ export class EmailService {
           subject: email.subject,
           html: email.html,
           text: email.text,
-          headers: {
-            'List-Unsubscribe': `<${this.ctx.unsubscribeUrl}>`,
-            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-          },
+          headers: headers ?? {},
         },
         { idempotencyKey },
       );
