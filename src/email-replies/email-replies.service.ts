@@ -35,7 +35,7 @@ function parseSender(fromStr?: string): { email: string; name: string | null } {
   return { email: trimmed.toLowerCase(), name: null };
 }
 
-function cleanSnippet(text?: string, html?: string): string {
+function cleanSnippet(text?: string | null, html?: string | null): string {
   const raw = text || (html ? html.replace(/<[^>]+>/g, ' ') : '');
   return raw
     .replace(/\s+/g, ' ')
@@ -95,20 +95,48 @@ export class EmailRepliesService {
 
     const data = payload.data || payload;
     const fromRaw = data.from || data.sender || '';
-    const { email: fromEmail, name: fromName } = parseSender(fromRaw);
+    let { email: fromEmail, name: fromName } = parseSender(fromRaw);
 
     if (!fromEmail) {
       throw new BadRequestException('Inbound email payload must contain a valid sender');
     }
 
     const toRaw = Array.isArray(data.to) ? data.to[0] : data.to || '';
-    const { email: toEmail } = parseSender(toRaw);
+    let { email: toEmail } = parseSender(toRaw);
 
-    const subject = data.subject || '(No subject)';
-    const bodyText = (data.text || '').trim();
-    const bodyHtml = data.html || null;
+    let subject = data.subject || '(No subject)';
+    let bodyText = (data.text || '').trim();
+    let bodyHtml = data.html || null;
     const resendEmailId = data.email_id || data.id || null;
-    const headers = data.headers || {};
+    let headers = data.headers || {};
+
+    // If Resend sent the webhook without the body, fetch full content from Resend API
+    if ((!bodyText && !bodyHtml) && resendEmailId) {
+      try {
+        const fetched = await this.emailService.getInboundEmail(resendEmailId);
+        if (fetched) {
+          if (fetched.text) bodyText = fetched.text.trim();
+          if (fetched.html) bodyHtml = fetched.html;
+          if (fetched.subject && (!subject || subject === '(No subject)')) {
+            subject = fetched.subject;
+          }
+          if (fetched.from && !fromEmail) {
+            const parsed = parseSender(fetched.from);
+            fromEmail = parsed.email;
+            fromName = parsed.name;
+          }
+          if (fetched.to && !toEmail) {
+            const toStr = Array.isArray(fetched.to) ? fetched.to[0] : fetched.to;
+            toEmail = parseSender(toStr).email;
+          }
+          if (fetched.headers) {
+            headers = { ...headers, ...fetched.headers };
+          }
+        }
+      } catch (e) {
+        this.logger.warn(`Could not fetch inbound email ${resendEmailId} from Resend: ${String(e)}`);
+      }
+    }
 
     const inReplyTo =
       headers['in-reply-to'] ||
@@ -130,6 +158,16 @@ export class EmailRepliesService {
     if (resendEmailId) {
       const existing = await this.replies.findOneBy({ resendEmailId });
       if (existing) {
+        // If existing record was missing body and we now have body, backfill it
+        if ((!existing.bodyText && !existing.bodyHtml) && (bodyText || bodyHtml)) {
+          existing.bodyText = bodyText;
+          existing.bodyHtml = bodyHtml;
+          existing.snippet = cleanSnippet(bodyText, bodyHtml);
+          if (subject && (!existing.subject || existing.subject === '(No subject)')) {
+            existing.subject = subject;
+          }
+          await this.replies.save(existing);
+        }
         this.logger.log(`Inbound email with Resend ID ${resendEmailId} already processed.`);
         return existing;
       }
@@ -316,6 +354,24 @@ export class EmailRepliesService {
 
     if (!reply) {
       throw new NotFoundException('Email reply not found');
+    }
+
+    // If body is missing but resendEmailId exists, backfill from Resend API
+    if ((!reply.bodyText && !reply.bodyHtml) && reply.resendEmailId) {
+      try {
+        const fetched = await this.emailService.getInboundEmail(reply.resendEmailId);
+        if (fetched && (fetched.text || fetched.html)) {
+          reply.bodyText = (fetched.text || '').trim();
+          reply.bodyHtml = fetched.html || null;
+          reply.snippet = cleanSnippet(reply.bodyText, reply.bodyHtml);
+          if (fetched.subject && (!reply.subject || reply.subject === '(No subject)')) {
+            reply.subject = fetched.subject;
+          }
+          await this.replies.save(reply);
+        }
+      } catch (e) {
+        this.logger.warn(`Could not backfill body for reply ${id}: ${String(e)}`);
+      }
     }
 
     return reply;

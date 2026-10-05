@@ -291,5 +291,45 @@ export class EmailService {
       return { outcome: 'failed', error: String(cause) };
     }
   }
+
+  /**
+   * Fetches the full inbound email (including body HTML and text) from Resend.
+   */
+  async getInboundEmail(emailId: string): Promise<{
+    html?: string | null;
+    text?: string | null;
+    subject?: string;
+    from?: string;
+    to?: string | string[];
+    headers?: Record<string, string>;
+  } | null> {
+    if (!this.resend) return null;
+    try {
+      // Try resend.emails.receiving.get(emailId) first (Resend Inbound)
+      if (this.resend.emails?.receiving?.get) {
+        const { data, error } = await this.resend.emails.receiving.get(emailId);
+        if (!error && data) {
+          return data as any;
+        }
+      }
+      // Fallback to resend.emails.get(emailId)
+      const { data, error } = await this.resend.emails.get(emailId);
+      if (!error && data) {
+        return data as any;
+      }
+      if (error) {
+        this.logger.warn(
+          `Failed to fetch inbound email ${emailId}: ${error.message}`,
+        );
+      }
+      return null;
+    } catch (e) {
+      this.logger.error(
+        `Error fetching inbound email ${emailId}: ${String(e)}`,
+      );
+      return null;
+    }
+  }
 }
+
 
