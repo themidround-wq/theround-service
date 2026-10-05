@@ -93,8 +93,8 @@ export function extractFirstName(name?: string | null): string | null {
 export function heading(text: string) {
   return `
           <tr>
-            <td class="px-mobile heading" style="padding-bottom: 32px; font-family: ${DISPLAY}; font-weight: 700; color: ${INK};">
-              <h1 style="margin:0; font-size:52px; line-height:1.1; font-family: ${DISPLAY}; font-weight: 700; color: ${INK};">${text}</h1>
+            <td class="px-mobile heading" style="padding-bottom: 24px; font-family: ${DISPLAY}; font-weight: 700; color: ${INK};">
+              <h1 style="margin:0; font-size:32px; line-height:1.2; font-family: ${DISPLAY}; font-weight: 700; color: ${INK}; letter-spacing:-0.02em;">${text}</h1>
             </td>
           </tr>`;
 }
@@ -296,7 +296,7 @@ export function layoutHtml({ ctx, title, preheader, body }: LayoutArgs) {
   @media screen and (max-width: 600px) {
     .container { width: 100% !important; }
     .px-mobile { padding-left: 24px !important; padding-right: 24px !important; }
-    .heading { font-size: 40px !important; line-height: 1.15 !important; }
+    .heading h1, .heading { font-size: 26px !important; line-height: 1.25 !important; }
     .body-text { font-size: 18px !important; line-height: 1.5 !important; }
   }
 </style>
