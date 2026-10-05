@@ -17,10 +17,18 @@ export const SANS = "'Segoe UI', Arial, sans-serif";
 export const DISPLAY = "'Poppins', 'Segoe UI', Arial, sans-serif";
 
 export const SOCIALS = [
-  { label: 'Instagram', href: 'https://instagram.com/theround' },
-  { label: 'TikTok', href: 'https://tiktok.com/@theround' },
-  { label: 'LinkedIn', href: 'https://linkedin.com/company/theround' },
-  { label: 'X', href: 'https://x.com/theround' },
+  {
+    label: 'Instagram',
+    href: 'https://www.instagram.com/_theround_?stkn=MTkwdGx4ZXA5Z2Zidw==',
+  },
+  {
+    label: 'TikTok',
+    href: 'https://www.tiktok.com/@_theround_?_r=1&_t=ZS-9AIuURykHxK',
+  },
+  {
+    label: 'X',
+    href: 'https://x.com/_theround__?s=11',
+  },
 ];
 
 /** Values from config that every template needs. */
