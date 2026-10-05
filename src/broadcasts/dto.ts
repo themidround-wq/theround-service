@@ -66,6 +66,16 @@ export class BroadcastContentDto {
   @IsOptional()
   @IsIn(AUDIENCES)
   audience?: Audience;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'Comma/space/newline-separated emails when audience is custom.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10_000)
+  customEmails?: string | null;
 }
 
 export class ScheduleDto {

@@ -87,6 +87,11 @@ export const AUDIENCE_INFO: Record<
     description: 'All users and the whole waitlist, once each.',
     users: false,
   },
+  custom: {
+    label: 'Specific recipients',
+    description: 'Send directly to individual email addresses.',
+    users: false,
+  },
 };
 
 type Person = { email: string; name: string | null };
@@ -102,6 +107,7 @@ export type BroadcastInput = Partial<
     | 'ctaLabel'
     | 'ctaUrl'
     | 'audience'
+    | 'customEmails'
   >
 >;
 
@@ -195,7 +201,11 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
     }
     const b = await this.broadcasts.findOneBy({ id });
     if (!b) return false;
-    const { people, suppressed } = await this.resolve(b.audience, b.kind);
+    const { people, suppressed } = await this.resolve(
+      b.audience,
+      b.kind,
+      b.customEmails,
+    );
 
     const claimed = await this.db.transaction(async (m) => {
       const res = await m.update(
@@ -374,9 +384,13 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Who an audience means right now. Unsubscribed addresses are left out,
-   * except from maintenance notices (service messages to account holders).
+   * except from maintenance notices and direct messages.
    */
-  async resolve(audience: Audience, kind: BroadcastKind) {
+  async resolve(
+    audience: Audience,
+    kind: BroadcastKind,
+    customEmails?: string | null,
+  ) {
     const people = new Map<string, Person>();
     const add = (p: Person) => {
       const email = p.email.trim().toLowerCase();
@@ -384,64 +398,103 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
         people.set(email, { email, name: p.name });
     };
 
-    if (AUDIENCE_INFO[audience].users || audience === 'everyone') {
-      const all = (
-        await this.users.find({
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            stage: true,
-            onboarded: true,
-            suspendedAt: true,
-          },
-        })
-      ).filter((u) => !u.suspendedAt);
-      let chosen = all;
-      if (audience === 'users_onboarded')
-        chosen = all.filter((u) => u.onboarded);
-      if (audience === 'users_students')
-        chosen = all.filter((u) => u.stage === 'student');
-      if (audience === 'users_qualified')
-        chosen = all.filter((u) => u.stage === 'qualified');
-      if (audience === 'users_inactive') {
-        const active = new Set(
-          (
-            await this.rounds
-              .createQueryBuilder('r')
-              .select('DISTINCT r.userId', 'userId')
-              .where('r.status = :s AND r.savedAt >= :since', {
-                s: 'saved',
-                since: new Date(Date.now() - 14 * DAY),
-              })
-              .getRawMany<{ userId: string }>()
-          ).map((r) => r.userId),
+    if (audience === 'custom') {
+      const raw = (customEmails ?? '')
+        .split(/[\s,;]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s));
+
+      if (raw.length) {
+        const [matchedUsers, matchedWaitlist] = await Promise.all([
+          this.users.find({
+            where: { email: In(raw) },
+            select: { email: true, name: true, suspendedAt: true },
+          }),
+          this.waitlist.find({
+            where: { email: In(raw) },
+            select: { email: true },
+          }),
+        ]);
+
+        const userMap = new Map(
+          matchedUsers
+            .filter((u) => !u.suspendedAt)
+            .map((u) => [u.email.toLowerCase(), u.name]),
         );
-        chosen = all.filter((u) => u.onboarded && !active.has(u.id));
+        const waitlistEmails = new Set(
+          matchedWaitlist.map((w) => w.email.toLowerCase()),
+        );
+
+        for (const email of raw) {
+          if (userMap.has(email)) {
+            add({ email, name: userMap.get(email) ?? null });
+          } else if (waitlistEmails.has(email)) {
+            add({ email, name: null });
+          } else {
+            add({ email, name: null });
+          }
+        }
       }
-      chosen.forEach((u) => add({ email: u.email, name: u.name }));
+    } else {
+      if (AUDIENCE_INFO[audience]?.users || audience === 'everyone') {
+        const all = (
+          await this.users.find({
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              stage: true,
+              onboarded: true,
+              suspendedAt: true,
+            },
+          })
+        ).filter((u) => !u.suspendedAt);
+        let chosen = all;
+        if (audience === 'users_onboarded')
+          chosen = all.filter((u) => u.onboarded);
+        if (audience === 'users_students')
+          chosen = all.filter((u) => u.stage === 'student');
+        if (audience === 'users_qualified')
+          chosen = all.filter((u) => u.stage === 'qualified');
+        if (audience === 'users_inactive') {
+          const active = new Set(
+            (
+              await this.rounds
+                .createQueryBuilder('r')
+                .select('DISTINCT r.userId', 'userId')
+                .where('r.status = :s AND r.savedAt >= :since', {
+                  s: 'saved',
+                  since: new Date(Date.now() - 14 * DAY),
+                })
+                .getRawMany<{ userId: string }>()
+            ).map((r) => r.userId),
+          );
+          chosen = all.filter((u) => u.onboarded && !active.has(u.id));
+        }
+        chosen.forEach((u) => add({ email: u.email, name: u.name }));
+      }
+
+      if (
+        audience === 'waitlist_all' ||
+        audience === 'waitlist_pending' ||
+        audience === 'everyone'
+      ) {
+        const entries = await this.waitlist.find({ select: { email: true } });
+        const hasAccount =
+          audience === 'waitlist_pending'
+            ? new Set(
+                (await this.users.find({ select: { email: true } })).map((u) =>
+                  u.email.toLowerCase(),
+                ),
+              )
+            : new Set<string>();
+        entries
+          .filter((w) => !hasAccount.has(w.email.toLowerCase()))
+          .forEach((w) => add({ email: w.email, name: null }));
+      }
     }
 
-    if (
-      audience === 'waitlist_all' ||
-      audience === 'waitlist_pending' ||
-      audience === 'everyone'
-    ) {
-      const entries = await this.waitlist.find({ select: { email: true } });
-      const hasAccount =
-        audience === 'waitlist_pending'
-          ? new Set(
-              (await this.users.find({ select: { email: true } })).map((u) =>
-                u.email.toLowerCase(),
-              ),
-            )
-          : new Set<string>();
-      entries
-        .filter((w) => !hasAccount.has(w.email.toLowerCase()))
-        .forEach((w) => add({ email: w.email, name: null }));
-    }
-
-    if (kind === 'maintenance')
+    if (kind === 'maintenance' || kind === 'direct')
       return { people: [...people.values()], suppressed: 0 };
     const unsubscribed = new Set(
       (await this.unsubscribes.find({ select: { email: true } })).map(
@@ -453,8 +506,9 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async audiences(kind: BroadcastKind = 'newsletter') {
+    const presets = AUDIENCES.filter((k) => k !== 'custom');
     return Promise.all(
-      AUDIENCES.map(async (key) => {
+      presets.map(async (key) => {
         const { people, suppressed } = await this.resolve(key, kind);
         return { key, ...AUDIENCE_INFO[key], count: people.length, suppressed };
       }),
@@ -533,6 +587,8 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
     if (out.bodyHtml !== undefined) out.bodyHtml = sanitizeBody(out.bodyHtml);
     if (out.ctaLabel !== undefined) out.ctaLabel = out.ctaLabel?.trim() || null;
     if (out.ctaUrl !== undefined) out.ctaUrl = out.ctaUrl?.trim() || null;
+    if (out.customEmails !== undefined)
+      out.customEmails = out.customEmails?.trim() || null;
     return out;
   }
 
@@ -545,8 +601,15 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
       problems.push('give the button both a label and a link');
     if (b.ctaUrl && !/^https:\/\//.test(b.ctaUrl))
       problems.push('use an https:// link for the button');
-    if (b.kind === 'maintenance' && !AUDIENCE_INFO[b.audience].users) {
+    if (b.kind === 'maintenance' && !AUDIENCE_INFO[b.audience]?.users) {
       problems.push('send service notices to app users only');
+    }
+    if (b.audience === 'custom') {
+      const raw = (b.customEmails ?? '')
+        .split(/[\s,;]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s));
+      if (!raw.length) problems.push('add at least one valid recipient email');
     }
     if (problems.length)
       throw new BadRequestException(`Before sending, ${problems.join(', ')}.`);
@@ -584,7 +647,7 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
       throw new ConflictException('Already sent');
     this.assertSendable(b);
     this.assertEmail();
-    const { people } = await this.resolve(b.audience, b.kind);
+    const { people } = await this.resolve(b.audience, b.kind, b.customEmails);
     if (!people.length)
       throw new BadRequestException('Nobody is in that audience right now.');
     await this.start(id, ['draft', 'scheduled']);
@@ -643,19 +706,14 @@ export class BroadcastsService implements OnModuleInit, OnModuleDestroy {
       ctaLabel: b.ctaLabel,
       ctaUrl: b.ctaUrl,
       audience: b.audience,
+      customEmails: b.customEmails,
     });
   }
 
   async remove(id: string) {
     const b = await this.get(id);
-    if (
-      b.status === 'sending' ||
-      b.status === 'sent' ||
-      b.status === 'scheduled'
-    ) {
-      throw new ConflictException(
-        'Only drafts and cancelled broadcasts can be deleted. Sent ones stay as a record.',
-      );
+    if (b.status === 'sending') {
+      throw new ConflictException('Stop sending before deleting this broadcast');
     }
     await this.broadcasts.remove(b);
     return b;

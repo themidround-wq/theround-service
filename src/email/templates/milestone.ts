@@ -2,6 +2,7 @@ import {
   button,
   EmailContext,
   escapeHtml,
+  extractFirstName,
   formatTotal,
   heading,
   layoutHtml,
@@ -41,6 +42,7 @@ export function milestone(
     mostPractised,
   }: MilestoneProps,
 ): RenderedEmail {
+  const firstName = extractFirstName(name);
   const subject = `${totalRounds} rounds.`;
   const line =
     LINES[totalRounds] ??
@@ -63,7 +65,7 @@ export function milestone(
     preheader: `You've saved ${totalRounds} rounds on The Round. Here's what that looks like.`,
     body: [
       heading(subject),
-      paragraph(name ? `Well done, ${escapeHtml(name)}.` : 'Well done.'),
+      paragraph(firstName ? `Well done, ${escapeHtml(firstName)}.` : 'Well done.'),
       paragraph(line),
       stats(rows),
       button(ctx.appUrl, 'Keep going'),
@@ -73,7 +75,7 @@ export function milestone(
   const text = layoutText(ctx, [
     subject,
     '',
-    name ? `Well done, ${name}.` : 'Well done.',
+    firstName ? `Well done, ${firstName}.` : 'Well done.',
     '',
     line.replace(/&rsquo;/g, "'").replace(/&mdash;/g, ' - '),
     '',

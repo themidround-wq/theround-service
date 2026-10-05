@@ -3,6 +3,7 @@ import {
   button,
   EmailContext,
   escapeHtml,
+  extractFirstName,
   formatDuration,
   heading,
   layoutHtml,
@@ -34,6 +35,7 @@ export function firstRound(
   ctx: EmailContext,
   { name, category, question, spokenSeconds, reflection }: FirstRoundProps,
 ): RenderedEmail {
+  const firstName = extractFirstName(name);
   const subject = 'Your first round is in.';
 
   const rows: [string, string][] = [['Category', escapeHtml(category)]];
@@ -41,8 +43,8 @@ export function firstRound(
     rows.push(['You spoke for', formatDuration(spokenSeconds)]);
   if (reflection) rows.push(['How it felt', REFLECTION_LABELS[reflection]]);
 
-  const opener = name
-    ? `${escapeHtml(name)}, that&rsquo;s the hardest one done.`
+  const opener = firstName
+    ? `${escapeHtml(firstName)}, that&rsquo;s the hardest one done.`
     : 'That&rsquo;s the hardest one done.';
 
   const html = layoutHtml({
@@ -64,8 +66,8 @@ export function firstRound(
   const text = layoutText(ctx, [
     subject,
     '',
-    name
-      ? `${name}, that's the hardest one done.`
+    firstName
+      ? `${firstName}, that's the hardest one done.`
       : "That's the hardest one done.",
     '',
     'You answered:',

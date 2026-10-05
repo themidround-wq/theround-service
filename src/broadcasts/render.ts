@@ -20,6 +20,7 @@ export const KIND_LABEL: Record<BroadcastKind, string> = {
   feature_update: 'New in The Round',
   announcement: 'Announcement',
   maintenance: 'Service notice',
+  direct: 'Message',
 };
 
 const P = `margin:0 0 20px; font-family:${SANS}; font-size:18px; line-height:1.6; color:${INK};`;
@@ -135,10 +136,39 @@ export type BroadcastContent = {
   ctaUrl: string | null;
 };
 
-/** `{{name}}` becomes the reader's first name, or "there". */
-const personalise = (s: string, name: string | null, html: boolean) => {
-  const value = name?.trim().split(/\s+/)[0] || 'there';
-  return s.replace(/\{\{\s*name\s*\}\}/gi, html ? escapeHtml(value) : value);
+/**
+ * Extracts a clean first name from a user's full name,
+ * returning null if unresolved (e.g. null, empty, whitespace, or raw email).
+ */
+export function extractFirstName(name?: string | null): string | null {
+  if (!name) return null;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.includes('@')) return null;
+  const first = trimmed.split(/\s+/)[0].replace(/[^\p{L}\p{N}'-]/gu, '');
+  if (!first) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
+
+/** `{{name}}` becomes the reader's first name, or graceful fallback "there" / "Round Star". */
+export const personalise = (s: string, name: string | null, html: boolean) => {
+  const firstName = extractFirstName(name);
+
+  if (firstName) {
+    const val = html ? escapeHtml(firstName) : firstName;
+    return s.replace(/\{\{\s*name\s*\}\}/gi, val);
+  }
+
+  // Graceful fallbacks when name cannot be resolved:
+  // 1. "Hi {{name}}" / "Hey {{name}}" / "Hello {{name}}" -> "Hi there" / "Hey there" / "Hello there"
+  // 2. "Dear {{name}}" -> "Dear Round Star"
+  // 3. Standalone "{{name}}" -> "there"
+  return s
+    .replace(/(Hi|Hey|Hello)\s+\{\{\s*name\s*\}\}/gi, (_match, greeting) => {
+      const capGreeting = greeting.charAt(0).toUpperCase() + greeting.slice(1).toLowerCase();
+      return `${capGreeting} there`;
+    })
+    .replace(/(Dear)\s+\{\{\s*name\s*\}\}/gi, '$1 Round Star')
+    .replace(/\{\{\s*name\s*\}\}/gi, 'there');
 };
 
 function kindLabel(kind: BroadcastKind) {

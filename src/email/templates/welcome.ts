@@ -2,6 +2,7 @@ import {
   button,
   EmailContext,
   escapeHtml,
+  extractFirstName,
   heading,
   layoutHtml,
   layoutText,
@@ -14,8 +15,9 @@ export function welcome(
   ctx: EmailContext,
   { name }: { name?: string | null },
 ): RenderedEmail {
+  const firstName = extractFirstName(name);
   const subject = "You're in.";
-  const title = name ? `You're in, ${escapeHtml(name)}.` : subject;
+  const title = firstName ? `You're in, ${escapeHtml(firstName)}.` : subject;
 
   const html = layoutHtml({
     ctx,
@@ -35,7 +37,7 @@ export function welcome(
   });
 
   const text = layoutText(ctx, [
-    name ? `You're in, ${name}.` : subject,
+    firstName ? `You're in, ${firstName}.` : subject,
     '',
     'Welcome to The Round.',
     '',

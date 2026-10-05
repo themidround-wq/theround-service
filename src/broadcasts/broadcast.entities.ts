@@ -23,6 +23,7 @@ export const BROADCAST_KINDS = [
   'feature_update',
   'announcement',
   'maintenance',
+  'direct',
 ] as const;
 export type BroadcastKind = (typeof BROADCAST_KINDS)[number];
 
@@ -35,6 +36,7 @@ export const AUDIENCES = [
   'waitlist_pending',
   'waitlist_all',
   'everyone',
+  'custom',
 ] as const;
 export type Audience = (typeof AUDIENCES)[number];
 
@@ -70,6 +72,10 @@ export class Broadcast {
   ctaUrl: string | null;
 
   @Column({ type: 'varchar', default: 'users_all' }) audience: Audience;
+
+  /** Comma/space/newline separated list of email addresses when audience is 'custom'. */
+  @Column({ name: 'custom_emails', type: 'text', nullable: true })
+  customEmails: string | null;
 
   @Column({ type: 'varchar', default: 'draft' }) status: BroadcastStatus;
 

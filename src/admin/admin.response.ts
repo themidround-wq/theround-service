@@ -465,6 +465,12 @@ export class BroadcastResponse extends BroadcastListItem {
     example: 'https://app.gettheround.com',
   })
   ctaUrl: string | null;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    example: 'sarah@example.com, john@example.com',
+  })
+  customEmails: string | null;
   /** Worker lease while sending; null otherwise. */
   @ApiProperty({ nullable: true, type: Date, example: null })
   lockedUntil: Date | null;
