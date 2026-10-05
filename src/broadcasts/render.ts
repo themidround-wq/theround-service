@@ -136,21 +136,42 @@ export type BroadcastContent = {
   ctaUrl: string | null;
 };
 
+const NON_HUMAN_NAMES = new Set([
+  'the',
+  'admin',
+  'administrator',
+  'team',
+  'support',
+  'info',
+  'test',
+  'testing',
+  'user',
+  'member',
+  'noreply',
+  'no-reply',
+  'theround',
+  'round',
+]);
+
 /**
  * Extracts a clean first name from a user's full name,
- * returning null if unresolved (e.g. null, empty, whitespace, or raw email).
+ * returning null if unresolved (e.g. null, empty, whitespace, raw email, or system/org prefix).
  */
 export function extractFirstName(name?: string | null): string | null {
   if (!name) return null;
   const trimmed = name.trim();
   if (!trimmed || trimmed.includes('@')) return null;
   const first = trimmed.split(/\s+/)[0].replace(/[^\p{L}\p{N}'-]/gu, '');
-  if (!first) return null;
-  return first.charAt(0).toUpperCase() + first.slice(1);
+  if (!first || NON_HUMAN_NAMES.has(first.toLowerCase())) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
 }
 
-/** `{{name}}` becomes the reader's first name, or graceful fallback "there" / "Round Star". */
+/** `{{name}}` becomes the reader's first name, or graceful fallback "Round Star". */
 export const personalise = (s: string, name: string | null, html: boolean) => {
+  if (name?.trim() === 'Round Star') {
+    return s.replace(/\{\{\s*name\s*\}\}/gi, 'Round Star');
+  }
+
   const firstName = extractFirstName(name);
 
   if (firstName) {
@@ -158,17 +179,8 @@ export const personalise = (s: string, name: string | null, html: boolean) => {
     return s.replace(/\{\{\s*name\s*\}\}/gi, val);
   }
 
-  // Graceful fallbacks when name cannot be resolved:
-  // 1. "Hi {{name}}" / "Hey {{name}}" / "Hello {{name}}" -> "Hi there" / "Hey there" / "Hello there"
-  // 2. "Dear {{name}}" -> "Dear Round Star"
-  // 3. Standalone "{{name}}" -> "there"
-  return s
-    .replace(/(Hi|Hey|Hello)\s+\{\{\s*name\s*\}\}/gi, (_match, greeting) => {
-      const capGreeting = greeting.charAt(0).toUpperCase() + greeting.slice(1).toLowerCase();
-      return `${capGreeting} there`;
-    })
-    .replace(/(Dear)\s+\{\{\s*name\s*\}\}/gi, '$1 Round Star')
-    .replace(/\{\{\s*name\s*\}\}/gi, 'there');
+  // Graceful fallback when name cannot be resolved: default to "Round Star"
+  return s.replace(/\{\{\s*name\s*\}\}/gi, 'Round Star');
 };
 
 function kindLabel(kind: BroadcastKind) {

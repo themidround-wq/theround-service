@@ -29,6 +29,7 @@ import {
   UnsubscribeDto,
 } from '../broadcasts/dto';
 import { BroadcastsService } from '../broadcasts/broadcasts.service';
+import { extractFirstName } from '../broadcasts/render';
 import type { AdminUser } from './admin.entities';
 import { AdminGuard, CurrentAdmin, RequireRole } from './admin.guard';
 import { AuditService } from './audit.service';
@@ -93,6 +94,7 @@ export class AdminBroadcastsController {
   @Post('broadcasts/preview')
   @HttpCode(200)
   preview(@CurrentAdmin() admin: AdminUser, @Body() dto: BroadcastContentDto) {
+    const previewName = extractFirstName(admin.name) ?? 'Round Star';
     return this.broadcasts.preview(
       {
         kind: dto.kind ?? 'newsletter',
@@ -103,7 +105,7 @@ export class AdminBroadcastsController {
         ctaLabel: dto.ctaLabel ?? null,
         ctaUrl: dto.ctaUrl ?? null,
       },
-      admin.name,
+      previewName,
     );
   }
 
@@ -169,7 +171,8 @@ export class AdminBroadcastsController {
     @Body() dto: TestSendDto,
   ) {
     const to = dto.to ?? [by.email];
-    const r = await this.broadcasts.sendTest(id, to, by.name);
+    const testName = extractFirstName(by.name) ?? 'Round Star';
+    const r = await this.broadcasts.sendTest(id, to, testName);
     await this.audit.record(by, 'broadcast.test', id, { to });
     return r;
   }

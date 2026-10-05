@@ -50,17 +50,34 @@ export function escapeHtml(value: string) {
     .replace(/'/g, '&#39;');
 }
 
+const NON_HUMAN_NAMES = new Set([
+  'the',
+  'admin',
+  'administrator',
+  'team',
+  'support',
+  'info',
+  'test',
+  'testing',
+  'user',
+  'member',
+  'noreply',
+  'no-reply',
+  'theround',
+  'round',
+]);
+
 /**
  * Extracts a clean first name from a user's full name,
- * returning null if unresolved (e.g. null, empty, whitespace, or raw email).
+ * returning null if unresolved (e.g. null, empty, whitespace, raw email, or system/org prefix).
  */
 export function extractFirstName(name?: string | null): string | null {
   if (!name) return null;
   const trimmed = name.trim();
   if (!trimmed || trimmed.includes('@')) return null;
   const first = trimmed.split(/\s+/)[0].replace(/[^\p{L}\p{N}'-]/gu, '');
-  if (!first) return null;
-  return first.charAt(0).toUpperCase() + first.slice(1);
+  if (!first || NON_HUMAN_NAMES.has(first.toLowerCase())) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
 }
 
 /* ---------- Blocks: each returns one <tr> of the content table ---------- */
