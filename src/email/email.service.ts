@@ -250,4 +250,46 @@ export class EmailService {
     );
     return 'results' in r && 'id' in r.results[0] ? 'sent' : 'failed';
   }
+
+  /**
+   * Direct reply to an inbound email or user thread.
+   */
+  async sendDirectReply(
+    to: string,
+    subject: string,
+    body: { html: string; text: string },
+    headers?: Record<string, string>,
+  ): Promise<{ outcome: SendOutcome; messageId?: string; error?: string }> {
+    if (!this.resend || !this.from) {
+      this.logger.log(
+        `Skipped direct reply "${subject}" to ${to} (email disabled)`,
+      );
+      return { outcome: 'disabled' };
+    }
+
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: this.from,
+        to,
+        replyTo: this.replyTo,
+        subject,
+        html: body.html,
+        text: body.text,
+        headers: headers ?? {},
+      });
+
+      if (error) {
+        this.logger.error(
+          `Reply "${subject}" to ${to} failed: ${error.message}`,
+        );
+        return { outcome: 'failed', error: error.message };
+      }
+      this.logger.log(`Sent reply "${subject}" to ${to} (id: ${data?.id})`);
+      return { outcome: 'sent', messageId: data?.id };
+    } catch (cause) {
+      this.logger.error(`Reply "${subject}" to ${to} threw: ${String(cause)}`);
+      return { outcome: 'failed', error: String(cause) };
+    }
+  }
 }
+

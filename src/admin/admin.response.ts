@@ -570,3 +570,54 @@ export class AddUnsubscribeResponse {
   /** False when the address was already unsubscribed. */
   @ApiProperty({ example: true }) added: boolean;
 }
+
+// ---- email replies -------------------------------------------------------------
+
+export class EmailReplyMessageResponse {
+  @ApiProperty({ example: '3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c' }) id: string;
+  @ApiProperty({ enum: ['admin', 'user'], example: 'admin' }) senderType: string;
+  @ApiProperty({ example: 'founder@gettheround.com' }) senderEmail: string;
+  @ApiProperty({ nullable: true, type: String, example: 'Ani' }) senderName: string | null;
+  @ApiProperty({ example: 'Thanks for reaching out! The cardiology questions are now live.' }) bodyText: string;
+  @ApiProperty({ nullable: true, type: String }) bodyHtml: string | null;
+  @ApiProperty({ example: '2026-10-05T14:20:00.000Z' }) createdAt: Date;
+}
+
+export class EmailReplyItemResponse {
+  @ApiProperty({ example: 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f' }) id: string;
+  @ApiProperty({ example: 'sarah@example.com' }) fromEmail: string;
+  @ApiProperty({ nullable: true, type: String, example: 'Sarah Connor' }) fromName: string | null;
+  @ApiProperty({ example: 'replies@the-round.app' }) toEmail: string;
+  @ApiProperty({ example: 'Re: What’s new in The Round this month' }) subject: string;
+  @ApiProperty({ example: 'Loved the new cardiology topic!' }) snippet: string;
+  @ApiProperty({ enum: ['unread', 'read', 'archived'], example: 'unread' }) status: string;
+  @ApiProperty({ nullable: true, type: String, example: '3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c' }) userId: string | null;
+  @ApiProperty({ nullable: true, type: String, example: 'd4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f7a' }) broadcastId: string | null;
+  @ApiProperty({ example: 1 }) replyCount: number;
+  @ApiProperty({ nullable: true, type: Date, example: '2026-10-05T14:20:00.000Z' }) lastRepliedAt: Date | null;
+  @ApiProperty({ example: '2026-10-05T12:00:00.000Z' }) createdAt: Date;
+  @ApiProperty({ example: '2026-10-05T14:20:00.000Z' }) updatedAt: Date;
+}
+
+export class EmailReplyDetailResponse extends EmailReplyItemResponse {
+  @ApiProperty({ example: 'Loved the new cardiology topic! When will the next update drop?' }) bodyText: string;
+  @ApiProperty({ nullable: true, type: String }) bodyHtml: string | null;
+  @ApiProperty({ type: [EmailReplyMessageResponse] }) messages: EmailReplyMessageResponse[];
+}
+
+export class EmailReplyListResponse {
+  @ApiProperty({ type: [EmailReplyItemResponse] }) items: EmailReplyItemResponse[];
+  @ApiProperty({ example: 42 }) total: number;
+  @ApiProperty({ example: 1 }) page: number;
+  @ApiProperty({ example: 25 }) limit: number;
+  @ApiProperty({ example: false }) hasMore: boolean;
+}
+
+export class EmailReplySummaryResponse {
+  @ApiProperty({ example: 42 }) total: number;
+  @ApiProperty({ example: 5 }) unread: number;
+  @ApiProperty({ example: 30 }) read: number;
+  @ApiProperty({ example: 7 }) archived: number;
+  @ApiProperty({ example: 18 }) replied: number;
+}
+

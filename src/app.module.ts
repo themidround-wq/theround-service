@@ -10,6 +10,7 @@ import { RoundsModule } from './rounds/rounds.module';
 import { SettingsModule } from './settings/settings.service';
 import { UsersModule } from './users/users.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
+import { EmailRepliesModule } from './email-replies/email-replies.module';
 
 @Module({
   imports: [
@@ -43,7 +44,9 @@ import { WaitlistModule } from './waitlist/waitlist.module';
     AuthModule,
     CatalogModule,
     RoundsModule,
+    EmailRepliesModule,
     AdminModule,
   ],
 })
 export class AppModule {}
+

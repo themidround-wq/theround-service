@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BroadcastsModule } from '../broadcasts/broadcasts.module';
+import { EmailRepliesModule } from '../email-replies/email-replies.module';
 import { Category, Question, Topic } from '../catalog/catalog.entities';
 import { Round } from '../rounds/round.entity';
 import { RoundsModule } from '../rounds/rounds.module';
@@ -22,6 +23,7 @@ import {
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { AdminBroadcastsController } from './broadcasts.controller';
+import { AdminEmailRepliesController } from './email-replies.controller';
 import { AuditService } from './audit.service';
 
 /** Everything under /api/admin: the founder dashboard's backend. */
@@ -42,13 +44,16 @@ import { AuditService } from './audit.service';
     RoundsModule,
     UsersModule,
     BroadcastsModule,
+    EmailRepliesModule,
   ],
   controllers: [
     AdminAuthController,
     AdminController,
     AdminSettingsController,
     AdminBroadcastsController,
+    AdminEmailRepliesController,
   ],
   providers: [AdminAuthService, AdminService, AuditService, AdminGuard],
 })
 export class AdminModule {}
+
