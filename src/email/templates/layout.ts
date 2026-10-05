@@ -20,6 +20,7 @@ export const SOCIALS = [
   { label: 'Instagram', href: 'https://instagram.com/theround' },
   { label: 'TikTok', href: 'https://tiktok.com/@theround' },
   { label: 'LinkedIn', href: 'https://linkedin.com/company/theround' },
+  { label: 'X', href: 'https://x.com/theround' },
 ];
 
 /** Values from config that every template needs. */
@@ -320,7 +321,23 @@ ${body}
                   </td>
                 </tr>
                 <tr>
-                  <td colspan="2" style="padding-top: 16px; font-family: ${SANS}; font-size: 12px; line-height: 1.5; color: ${MUTED};">
+                  <td colspan="2" style="padding-top: 16px; padding-bottom: 4px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        ${SOCIALS.map(
+                          (s, i) => `
+                        <td style="font-family: ${SANS}; font-weight: 600; font-size: 12px; ${
+                          i < SOCIALS.length - 1 ? 'padding-right: 18px;' : ''
+                        }">
+                          <a href="${s.href}" target="_blank" style="color: ${INK}; text-decoration: none; border-bottom: 1px solid ${RULE};">${s.label}</a>
+                        </td>`,
+                        ).join('')}
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding-top: 12px; font-family: ${SANS}; font-size: 12px; line-height: 1.5; color: ${MUTED};">
                     ${ctx.companyAddress ? `${escapeHtml(ctx.companyAddress)}<br />` : ''}
                     Received this by mistake or want to opt out? <a href="${ctx.unsubscribeUrl}" style="color: ${MUTED}; text-decoration: underline;">Unsubscribe</a>
                   </td>
@@ -346,7 +363,14 @@ ${body}
  * deliverability and is the fallback for text-only clients.
  */
 export function layoutText(ctx: EmailContext, lines: string[]) {
-  const out = [...lines, '', 'The Round - Practice with purpose.'];
+  const out = [
+    ...lines,
+    '',
+    'The Round - Practice with purpose.',
+    '',
+    'Follow along:',
+    ...SOCIALS.map((s) => `  ${s.label}: ${s.href}`),
+  ];
   if (ctx.companyAddress) out.push('', ctx.companyAddress);
   out.push('', `To unsubscribe or manage preferences: ${ctx.unsubscribeUrl}`);
   return out.join('\n');
