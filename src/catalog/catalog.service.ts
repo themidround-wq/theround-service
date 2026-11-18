@@ -1,8 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
+import { SLUG_BY_NAME } from '../practice/topics';
 import { Category, Question, Topic } from './catalog.entities';
-import { SEED } from './seed';
+import { PRACTICE_SEED, SEED } from './seed';
 
 @Injectable()
 export class CatalogService implements OnModuleInit {
@@ -15,16 +16,51 @@ export class CatalogService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    if ((await this.categories.count()) > 0) return;
-    let order = 0;
-    for (const [catName, topics] of Object.entries(SEED)) {
+    if ((await this.categories.count()) === 0) {
+      await this.seed({ ...SEED, ...PRACTICE_SEED }, 0);
+    } else if (process.env.DB_TYPE !== 'postgres') {
+      // Local SQLite: top up practice topics (Postgres gets them by migration).
+      const names = new Set((await this.categories.find()).map((c) => c.name));
+      const missing = Object.fromEntries(
+        Object.entries(PRACTICE_SEED).filter(([n]) => !names.has(n)),
+      );
+      if (Object.keys(missing).length)
+        await this.seed(missing, await this.categories.count());
+    }
+    await this.backfillSlugs();
+  }
+
+  private async seed(
+    data: Record<string, Record<string, string[]>>,
+    from: number,
+  ) {
+    let order = from;
+    for (const [catName, topics] of Object.entries(data)) {
       const category = await this.categories.save({
         name: catName,
+        slug: SLUG_BY_NAME[catName] ?? null,
         sortOrder: order++,
       });
       for (const [topicName, qs] of Object.entries(topics)) {
         const topic = await this.topics.save({ name: topicName, category });
         await this.questions.save(qs.map((text) => ({ text, topic })));
+      }
+    }
+  }
+
+  /** Give known categories their practice slug (idempotent; renamed ones keep theirs). */
+  private async backfillSlugs() {
+    const unslugged = await this.categories.find({ where: { slug: IsNull() } });
+    const taken = new Set(
+      (await this.categories.find({ where: { slug: Not(IsNull()) } })).map(
+        (c) => c.slug,
+      ),
+    );
+    for (const c of unslugged) {
+      const slug = SLUG_BY_NAME[c.name];
+      if (slug && !taken.has(slug)) {
+        await this.categories.update(c.id, { slug });
+        taken.add(slug);
       }
     }
   }

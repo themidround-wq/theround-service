@@ -27,6 +27,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { AssessmentService } from '../assessment/assessment.service';
 import { AuthService } from '../auth/auth.service';
 import { SettingsService } from '../settings/settings.service';
 import type { AdminUser } from './admin.entities';
@@ -53,6 +54,7 @@ import {
   CreateCategoryDto,
   CreateQuestionDto,
   CreateTopicDto,
+  FlagRoundDto,
   IdsDto,
   ListAdminRoundsDto,
   ListUsersDto,
@@ -341,6 +343,7 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly userAuth: AuthService,
     private readonly audit: AuditService,
+    private readonly assessment: AssessmentService,
   ) {}
 
   @ApiOperation({ summary: 'KPIs, daily series and recent signups' })
@@ -516,6 +519,48 @@ export class AdminController {
     );
   }
 
+  @ApiOperation({
+    summary: 'Flag AI feedback as wrong or unhelpful',
+    description: 'Flagged rounds are listed with ?flagged=true for review.',
+  })
+  @ApiNoContentResponse()
+  @RequireRole('admin')
+  @Post('rounds/:id/flag')
+  @HttpCode(204)
+  flagRound(
+    @CurrentAdmin() by: AdminUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: FlagRoundDto,
+  ) {
+    return this.admin.flagRound(by, id, dto.note);
+  }
+
+  @ApiOperation({ summary: 'Clear a flag' })
+  @ApiNoContentResponse()
+  @RequireRole('admin')
+  @Delete('rounds/:id/flag')
+  @HttpCode(204)
+  unflagRound(
+    @CurrentAdmin() by: AdminUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.admin.unflagRound(by, id);
+  }
+
+  @ApiOperation({
+    summary: 'AI marking status and usage',
+    description:
+      'Which providers/model are selected and whether they are configured, plus 30-day volume, estimated cost, fallbacks and flags.',
+  })
+  @Get('ai')
+  async ai() {
+    const [status, usage] = await Promise.all([
+      this.assessment.status(),
+      this.admin.aiUsage(),
+    ]);
+    return { ...status, usage };
+  }
+
   @ApiOperation({ summary: 'Delete a round and its recording' })
   @ApiNoContentResponse()
   @RequireRole('admin')
@@ -644,7 +689,7 @@ export class AdminController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateQuestionDto,
   ) {
-    return this.admin.updateQuestion(by, id, dto.text);
+    return this.admin.updateQuestion(by, id, dto);
   }
 
   @ApiOperation({

@@ -4,12 +4,17 @@ import { CatalogModule } from '../catalog/catalog.module';
 import { StorageService } from '../storage/storage.service';
 import { UsersModule } from '../users/users.module';
 import { MeController } from './me.controller';
+import { PracticeSession } from '../practice/practice-session.entity';
 import { Round } from './round.entity';
 import { LocalAudioController, RoundsController } from './rounds.controller';
 import { RoundsService } from './rounds.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Round]), CatalogModule, UsersModule],
+  imports: [
+    TypeOrmModule.forFeature([Round, PracticeSession]),
+    CatalogModule,
+    UsersModule,
+  ],
   controllers: [RoundsController, LocalAudioController, MeController],
   providers: [RoundsService, StorageService],
   exports: [RoundsService, StorageService],

@@ -44,11 +44,48 @@ export const SETTINGS = {
     label: 'Progress emails',
     description: 'First saved round and milestone (5, 10, 25, 50, 100) emails.',
   },
+  'ai.marking': {
+    type: 'boolean',
+    default: false,
+    label: 'AI marking',
+    description:
+      'Transcribe each practice answer and mark it with Claude against the question rubric. When off (or keys are missing), the placeholder scorer is used.',
+  },
+  'ai.transcription': {
+    type: 'string',
+    options: ['deepgram', 'assemblyai', 'whisper'],
+    optionLabels: {
+      deepgram: 'Deepgram',
+      assemblyai: 'AssemblyAI',
+      whisper: 'Whisper (open source)',
+    },
+    default: 'whisper',
+    label: 'Speech-to-text provider',
+    description:
+      'Which service turns recordings into transcripts. Switch to compare accuracy on real answers.',
+  },
+  'ai.markingModel': {
+    type: 'string',
+    options: ['open', 'claude-haiku-5-5', 'claude-opus-5-5'],
+    optionLabels: {
+      open: 'Open-source model',
+      'claude-haiku-5-5': 'Claude Haiku 5.5',
+      'claude-opus-5-5': 'Claude Opus 5.5',
+    },
+    default: 'open',
+    label: 'Marking model',
+    description:
+      'Open source: the model at OPEN_MODEL_BASE_URL (cheapest, self-hosted or Groq/Together). Claude Haiku 5.5: low cost. Claude Opus 5.5: best judgement (about 3¢ per answer).',
+  },
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS;
 export type SettingValue<K extends SettingKey> =
-  (typeof SETTINGS)[K]['type'] extends 'boolean' ? boolean : number;
+  (typeof SETTINGS)[K]['type'] extends 'boolean'
+    ? boolean
+    : (typeof SETTINGS)[K]['type'] extends 'string'
+      ? string
+      : number;
 export type SettingsMap = { [K in SettingKey]: SettingValue<K> };
 
 export type BooleanSettingKey = {

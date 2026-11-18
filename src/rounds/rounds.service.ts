@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { CatalogService } from '../catalog/catalog.service';
 import { EmailService } from '../email/email.service';
@@ -81,7 +81,12 @@ export class RoundsService {
   async spin(userId: string) {
     const user = await this.users.findById(userId);
     // A new spin replaces any untouched pending spin.
-    await this.rounds.delete({ user: { id: userId }, status: 'spun' });
+    // Practice-session rounds are managed by PracticeService; leave them alone.
+    await this.rounds.delete({
+      user: { id: userId },
+      status: 'spun',
+      session: IsNull(),
+    });
 
     const categories = await this.catalog.listCategories();
     const counts = await this.rounds
@@ -217,7 +222,12 @@ export class RoundsService {
   async repeat(userId: string, id: string) {
     const source = await this.owned(userId, id);
     const user = await this.users.findById(userId);
-    await this.rounds.delete({ user: { id: userId }, status: 'spun' });
+    // Practice-session rounds are managed by PracticeService; leave them alone.
+    await this.rounds.delete({
+      user: { id: userId },
+      status: 'spun',
+      session: IsNull(),
+    });
     const round = await this.rounds.save(
       this.rounds.create({
         user: { id: userId },

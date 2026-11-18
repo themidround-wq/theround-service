@@ -7,7 +7,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { mkdir, unlink, writeFile } from 'fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import { dirname, join, resolve } from 'path';
 
 const URL_TTL_SECONDS = 15 * 60;
@@ -82,6 +82,17 @@ export class StorageService {
 
   localPath(key: string) {
     return join(this.root, key);
+  }
+
+  /** Reads a stored object back (AI marking sends the audio to a transcriber). */
+  async read(key: string): Promise<Buffer> {
+    if (this.s3) {
+      const res = await this.s3.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return Buffer.from(await res.Body!.transformToByteArray());
+    }
+    return readFile(this.localPath(key));
   }
 
   async remove(key: string) {

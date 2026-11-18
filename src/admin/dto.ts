@@ -15,7 +15,9 @@ import {
   Max,
   MaxLength,
   Min,
+  Matches,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ADMIN_ROLES } from './admin.entities';
 import type { AdminRole } from './admin.entities';
@@ -213,6 +215,22 @@ export class ListAdminRoundsDto extends PageQueryDto {
   @IsIn(['spun', 'in_progress', 'completed', 'saved'])
   status?: string;
 
+  @ApiPropertyOptional({
+    enum: ['ai', 'placeholder'],
+    description: 'Where the feedback came from',
+  })
+  @IsOptional()
+  @IsIn(['ai', 'placeholder'])
+  source?: string;
+
+  @ApiPropertyOptional({
+    enum: ['true'],
+    description: 'Only rounds an admin flagged',
+  })
+  @IsOptional()
+  @IsIn(['true'])
+  flagged?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
@@ -250,6 +268,43 @@ export class UpdateCategoryDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'labour',
+    description: 'Key the practice app uses for this topic',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @Matches(/^[a-z0-9]+(-[a-z0-9]+)*$/, {
+    message: 'slug must be lowercase letters, numbers and dashes',
+  })
+  @MaxLength(40)
+  slug?: string;
+}
+
+export class RubricDto {
+  @ApiProperty({
+    type: [String],
+    example: ['Call for help early', 'ABCDE assessment'],
+  })
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  examinerPoints: string[];
+
+  @ApiProperty({ type: [String], example: ['Oxytocin 10 units IM'] })
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  @MaxLength(300, { each: true })
+  keyFacts: string[];
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  modelAnswer?: string | null;
 }
 
 export class ReorderCategoriesDto {
@@ -295,15 +350,41 @@ export class CreateQuestionDto {
   @MinLength(5)
   @MaxLength(500)
   text: string;
+
+  @ApiPropertyOptional({ type: RubricDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RubricDto)
+  rubric?: RubricDto;
 }
 
 export class UpdateQuestionDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @Transform(trim)
   @IsString()
   @MinLength(5)
   @MaxLength(500)
-  text: string;
+  text?: string;
+
+  @ApiPropertyOptional({
+    type: RubricDto,
+    nullable: true,
+    description: 'null removes the rubric',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RubricDto)
+  rubric?: RubricDto | null;
+}
+
+export class FlagRoundDto {
+  @ApiPropertyOptional({ example: 'Missed that the dose given was wrong' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  note?: string;
 }
 
 // ---- team ------------------------------------------------------------------

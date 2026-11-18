@@ -84,6 +84,39 @@ Commit the file in `src/migrations/`. SQLite (dev only) just auto-syncs.
 
 Round lifecycle: `spun → in_progress → completed → saved`. Only saved rounds appear in history and stats.
 
+## Practice sessions (app)
+
+The chat-style practice screen in `theround-client` runs on `/practice/*` (`src/practice/`). A session is a titled thread of ordinary rounds (`rounds.sessionId`), so reviewed practice rounds are `saved` rounds and also show in `/rounds` history, `/rounds/stats` and the admin dashboard. Topics are addressed by category `slug` (`labour`, `newborn`, `fon`…; see `src/practice/topics.ts`), which the app uses for its chips.
+
+| Endpoint | |
+| --- | --- |
+| `GET /practice/topics` | chip slugs for the user's course (midwifery or nursing set), only ones that have questions |
+| `GET /practice/sessions`, `POST /practice/sessions` `{categoryId: slug \| "surprise"}` | sidebar history; start a session (first question included) |
+| `GET/PATCH/DELETE /practice/sessions/:id`, `POST /practice/sessions/:id/restore` | read; rename `{title}`; soft delete (returns `{id, title, topic}` for the undo toast); undo |
+| `POST /practice/sessions/:id/{retake,next,change-topic}`, `POST /practice/sessions/:id/topic` `{categoryId}` | follow-ups after feedback |
+| `PATCH /practice/rounds/:id` `{durationSeconds: 90\|240}`, `POST /practice/rounds/:id/different` | before recording |
+| `POST /practice/rounds/:id/complete` multipart `audio?` + `spokenSeconds` | recording finished (audio optional when the browser has no mic) |
+| `POST /practice/rounds/:id/review` | scores the answer and saves the round |
+| `GET /practice/rounds/:id/audio`, `GET /practice/stats` | signed playback URL; profile stats (rounds, average/best score, speaking minutes, streak) |
+
+**Scoring is a placeholder.** `src/practice/feedback.ts` scores on how much of the time was used and returns per-topic rubric advice; there is no transcription or model yet. Replace `generateFeedback()` with a real assessor without changing the response shape.
+
+### AI marking
+
+`POST /practice/rounds/:id/review` runs `src/assessment/`: speech-to-text → measured delivery (pace, fillers, long pauses) → marking against the question's rubric (`questions.rubric`: examiner points, key facts, optional model answer, edited in the admin Content page). Three admin settings choose what runs, live within 30 s:
+
+| Setting | Options |
+| --- | --- |
+| `ai.marking` | off (placeholder scorer) / on |
+| `ai.transcription` | `whisper` (open source, any OpenAI-compatible endpoint), `deepgram`, `assemblyai` |
+| `ai.markingModel` | `open` (any open-source model behind an OpenAI-compatible endpoint: Ollama, vLLM, Groq, Together…), `claude-haiku-5-5`, `claude-opus-5-5` |
+
+Env vars are listed in `.env.example`. If a provider isn't configured or fails, the round gets placeholder feedback and the reason is stored in `rounds.markingMeta` (also tokens, estimated cost, timings). Rounds keep `transcript` and `feedbackSource` (`ai` / `placeholder`); admins can flag bad feedback (`POST/DELETE /admin/rounds/:id/flag`, `GET /admin/rounds?flagged=true&source=ai`). `GET /admin/ai` returns the current configuration and 30-day usage. Migration `1791700000000-AiMarking` adds the columns.
+
+The open-model path asks for JSON with `response_format` (set `OPEN_MODEL_JSON_MODE=json_object` for servers without schema support) and the reply is normalised before it reaches the app, so a smaller model can't break the screen. Measure any model on real answers before switching students to it.
+
+Migration `1791600000000-PracticeSessions` adds `categories.slug` (backfilled by name), the nursing/science practice topics if missing, `practice_sessions`, and the new round columns. Local SQLite gets the same through sync plus a top-up on boot.
+
 ## Two-factor for app users (API only)
 
 Optional TOTP two-factor, same mechanics as admins (`src/common/two-factor.ts`). The app has no screens for it yet; everything below is live in the API.

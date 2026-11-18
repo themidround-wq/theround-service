@@ -7,6 +7,7 @@ import { EmailService } from '../email/email.service';
 import { StorageService } from '../storage/storage.service';
 import { UsersModule } from '../users/users.module';
 import { UsersService } from '../users/users.service';
+import { PracticeSession } from '../practice/practice-session.entity';
 import { Round } from './round.entity';
 import { RoundsService } from './rounds.service';
 
@@ -33,7 +34,7 @@ describe('RoundsService progress emails', () => {
           autoLoadEntities: true,
           synchronize: true,
         }),
-        TypeOrmModule.forFeature([Round]),
+        TypeOrmModule.forFeature([Round, PracticeSession]),
         JwtModule.register({ secret: 'test', global: true }),
         CatalogModule,
         UsersModule,

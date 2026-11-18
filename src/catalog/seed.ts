@@ -85,3 +85,45 @@ export const SEED: Record<string, Record<string, string[]>> = {
     ],
   },
 };
+
+/**
+ * Topics added for the practice app (nursing + core sciences). New databases
+ * get them from the seed; existing Postgres databases from migration
+ * 1791600000000-PracticeSessions.
+ */
+export const PRACTICE_SEED: Record<string, Record<string, string[]>> = {
+  Anatomy: {
+    'Female pelvis': [
+      'Describe the features of the female pelvis that matter in labour.',
+    ],
+  },
+  Physiology: {
+    'Cardiovascular changes': [
+      'Explain the cardiovascular changes in pregnancy.',
+    ],
+  },
+  Pharmacology: {
+    Oxytocin: ['What should you know before giving oxytocin?'],
+  },
+  'Foundations of Nursing': {
+    'Vital signs': ['How do you take and interpret a set of vital signs?'],
+  },
+  'Medical Nursing': {
+    Hyperglycaemia: [
+      'How would you care for a patient admitted with hyperglycaemia?',
+    ],
+  },
+  'Emergency Care': {
+    'Primary survey': ['Walk me through a primary survey.'],
+  },
+  'Surgical Care': {
+    'Post-operative care': [
+      'What are your priorities in the first hour after surgery?',
+    ],
+  },
+  'Mental Health': {
+    'Risk assessment': [
+      'How would you approach a patient expressing suicidal thoughts?',
+    ],
+  },
+};

@@ -47,7 +47,8 @@ export class AdminEmailRepliesController {
 
   @ApiOperation({
     summary: 'List email replies',
-    description: 'Most recently received first. Filter by status, broadcast or user.',
+    description:
+      'Most recently received first. Filter by status, broadcast or user.',
   })
   @ApiOkResponse({ type: EmailReplyListResponse })
   @Get()

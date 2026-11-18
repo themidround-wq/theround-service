@@ -6,6 +6,7 @@ import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { EmailModule } from './email/email.module';
+import { PracticeModule } from './practice/practice.module';
 import { RoundsModule } from './rounds/rounds.module';
 import { SettingsModule } from './settings/settings.service';
 import { UsersModule } from './users/users.module';
@@ -44,9 +45,9 @@ import { EmailRepliesModule } from './email-replies/email-replies.module';
     AuthModule,
     CatalogModule,
     RoundsModule,
+    PracticeModule,
     EmailRepliesModule,
     AdminModule,
   ],
 })
 export class AppModule {}
-

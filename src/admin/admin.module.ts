@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AssessmentModule } from '../assessment/assessment.module';
 import { BroadcastsModule } from '../broadcasts/broadcasts.module';
 import { EmailRepliesModule } from '../email-replies/email-replies.module';
 import { Category, Question, Topic } from '../catalog/catalog.entities';
@@ -43,6 +44,7 @@ import { AuditService } from './audit.service';
     ]),
     RoundsModule,
     UsersModule,
+    AssessmentModule,
     BroadcastsModule,
     EmailRepliesModule,
   ],
@@ -56,4 +58,3 @@ import { AuditService } from './audit.service';
   providers: [AdminAuthService, AdminService, AuditService, AdminGuard],
 })
 export class AdminModule {}
-

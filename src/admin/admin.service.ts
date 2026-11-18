@@ -4,8 +4,20 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
-import { Category, Question, Topic } from '../catalog/catalog.entities';
+import {
+  In,
+  IsNull,
+  MoreThan,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
+import {
+  Category,
+  Question,
+  Topic,
+  type QuestionRubric,
+} from '../catalog/catalog.entities';
 import { EmailService } from '../email/email.service';
 import { Round } from '../rounds/round.entity';
 import { RoundsService } from '../rounds/rounds.service';
@@ -23,6 +35,7 @@ import {
   ListUsersDto,
   ListWaitlistDto,
   UpdateCategoryDto,
+  UpdateQuestionDto,
 } from './dto';
 
 const DAY = 86_400_000;
@@ -552,15 +565,19 @@ export class AdminService {
     q: Pick<
       ListAdminRoundsDto,
       'page' | 'limit' | 'search' | 'status' | 'categoryId' | 'userId'
-    >,
+    > &
+      Partial<Pick<ListAdminRoundsDto, 'source' | 'flagged'>>,
   ) {
     const qb = this.rounds
       .createQueryBuilder('r')
       .innerJoinAndSelect('r.user', 'user')
       .innerJoinAndSelect('r.category', 'category')
       .innerJoinAndSelect('r.topic', 'topic')
-      .innerJoinAndSelect('r.question', 'question');
+      .innerJoinAndSelect('r.question', 'question')
+      .leftJoinAndSelect('r.session', 'session');
     if (q.status) qb.andWhere('r.status = :status', { status: q.status });
+    if (q.source) qb.andWhere('r.feedbackSource = :src', { src: q.source });
+    if (q.flagged) qb.andWhere('r.flaggedAt IS NOT NULL');
     if (q.categoryId) qb.andWhere('category.id = :cid', { cid: q.categoryId });
     if (q.userId) qb.andWhere('user.id = :uid', { uid: q.userId });
     if (q.search) {
@@ -580,6 +597,17 @@ export class AdminService {
         startedAt: r.startedAt,
         completedAt: r.completedAt,
         user: { id: r.user.id, email: r.user.email, name: r.user.name },
+        session: r.session
+          ? { id: r.session.id, title: r.session.title }
+          : null,
+        retake: r.retake,
+        score: r.score,
+        feedback: r.feedback,
+        feedbackSource: r.feedbackSource,
+        transcript: r.transcript,
+        markingMeta: r.markingMeta,
+        flaggedAt: r.flaggedAt,
+        flagNote: r.flagNote,
       })),
       total,
       q,
@@ -600,6 +628,89 @@ export class AdminService {
     const url = await this.roundsService.audioUrl(round.user.id, id, origin);
     await this.audit.record(by, 'round.listen', id, { user: round.user.email });
     return url;
+  }
+
+  /** Mark AI feedback as wrong or unhelpful, for review and prompt tuning. */
+  async flagRound(by: AdminUser, id: string, note: string | undefined) {
+    const round = await this.roundOwner(id);
+    round.flaggedAt = new Date();
+    round.flagNote = note?.trim() || null;
+    await this.rounds.save(round);
+    await this.audit.record(by, 'round.flag', id, {
+      user: round.user.email,
+      note: round.flagNote,
+    });
+  }
+
+  async unflagRound(by: AdminUser, id: string) {
+    const round = await this.roundOwner(id);
+    round.flaggedAt = null;
+    round.flagNote = null;
+    await this.rounds.save(round);
+    await this.audit.record(by, 'round.unflag', id, { user: round.user.email });
+  }
+
+  /** Marked rounds over the last 30 days: volume, cost, scores, fallbacks, flags. */
+  async aiUsage() {
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const rows = await this.rounds.find({
+      where: { savedAt: MoreThan(since), feedbackSource: Not(IsNull()) },
+      select: {
+        id: true,
+        savedAt: true,
+        score: true,
+        feedbackSource: true,
+        markingMeta: true,
+        flaggedAt: true,
+      },
+    });
+    type Meta = {
+      costUsd?: number;
+      reason?: string | null;
+      marking?: { model?: string };
+      transcription?: { provider?: string };
+    };
+    const meta = (r: Round) => (r.markingMeta ?? {}) as Meta;
+    const day = new Date().toISOString().slice(0, 10);
+    const isToday = (r: Round) => r.savedAt?.toISOString().slice(0, 10) === day;
+    const cost = (rs: Round[]) =>
+      Number(
+        rs.reduce((a, r) => a + Number(meta(r).costUsd ?? 0), 0).toFixed(4),
+      );
+    const ai = rows.filter((r) => r.feedbackSource === 'ai');
+    const fallbacks = rows
+      .filter((r) => r.feedbackSource === 'placeholder' && meta(r).reason)
+      .sort((a, b) => +b.savedAt! - +a.savedAt!);
+    const byModel: Record<string, number> = {};
+    const byTranscriber: Record<string, number> = {};
+    for (const r of ai) {
+      const m = meta(r).marking?.model ?? 'unknown';
+      const t = meta(r).transcription?.provider ?? 'unknown';
+      byModel[m] = (byModel[m] ?? 0) + 1;
+      byTranscriber[t] = (byTranscriber[t] ?? 0) + 1;
+    }
+    const scores = ai.map((r) => r.score ?? 0);
+    return {
+      today: {
+        aiMarked: ai.filter(isToday).length,
+        costUsd: cost(ai.filter(isToday)),
+      },
+      last30Days: {
+        aiMarked: ai.length,
+        placeholder: rows.length - ai.length,
+        fallbacks: fallbacks.length,
+        lastFallbackReason: fallbacks[0]
+          ? (meta(fallbacks[0]).reason ?? null)
+          : null,
+        costUsd: cost(ai),
+        averageScore: scores.length
+          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+          : null,
+        flagged: rows.filter((r) => r.flaggedAt).length,
+        byModel,
+        byTranscriber,
+      },
+    };
   }
 
   async deleteRound(by: AdminUser, id: string) {
@@ -634,6 +745,7 @@ export class AdminService {
           const questions = t.questions.map((q) => ({
             id: q.id,
             text: q.text,
+            rubric: q.rubric,
             rounds: byQuestion.get(q.id) ?? 0,
           }));
           return {
@@ -646,6 +758,7 @@ export class AdminService {
       return {
         id: c.id,
         name: c.name,
+        slug: c.slug,
         sortOrder: c.sortOrder,
         active: c.active,
         /** On the wheel only when active and at least one topic has a question. */
@@ -693,9 +806,18 @@ export class AdminService {
     const c = await this.categories.findOneBy({ id });
     if (!c) throw new NotFoundException('Category not found');
     if (dto.name) await this.assertUniqueCategory(dto.name, id);
-    const before = { name: c.name, active: c.active };
+    if (dto.slug !== undefined && dto.slug !== c.slug) {
+      const clash = await this.categories.findOneBy({ slug: dto.slug });
+      if (clash && clash.id !== id) {
+        throw new ConflictException(
+          `"${clash.name}" already uses the key "${dto.slug}"`,
+        );
+      }
+    }
+    const before = { name: c.name, active: c.active, slug: c.slug };
     if (dto.name !== undefined) c.name = dto.name;
     if (dto.active !== undefined) c.active = dto.active;
+    if (dto.slug !== undefined) c.slug = dto.slug || null;
     await this.categories.save(c);
     await this.audit.record(by, 'catalog.category_update', c.name, {
       before,
@@ -752,24 +874,29 @@ export class AdminService {
   async createQuestion(by: AdminUser, dto: CreateQuestionDto) {
     const topic = await this.topics.findOneBy({ id: dto.topicId });
     if (!topic) throw new NotFoundException('Topic not found');
-    const q = await this.questions.save({ text: dto.text, topic });
+    const q = await this.questions.save({
+      text: dto.text,
+      topic,
+      rubric: cleanRubric(dto.rubric),
+    });
     await this.audit.record(by, 'catalog.question_create', topic.name, {
       text: q.text,
     });
-    return { id: q.id, text: q.text };
+    return { id: q.id, text: q.text, rubric: q.rubric };
   }
 
-  async updateQuestion(by: AdminUser, id: string, text: string) {
+  async updateQuestion(by: AdminUser, id: string, dto: UpdateQuestionDto) {
     const q = await this.questions.findOneBy({ id });
     if (!q) throw new NotFoundException('Question not found');
-    const before = q.text;
-    q.text = text;
+    const before = { text: q.text, rubric: q.rubric };
+    if (dto.text !== undefined) q.text = dto.text;
+    if (dto.rubric !== undefined) q.rubric = cleanRubric(dto.rubric);
     await this.questions.save(q);
     await this.audit.record(by, 'catalog.question_update', id, {
       before,
-      after: text,
+      after: { text: q.text, rubric: q.rubric },
     });
-    return { id: q.id, text: q.text };
+    return { id: q.id, text: q.text, rubric: q.rubric };
   }
 
   async deleteQuestion(by: AdminUser, id: string) {
@@ -781,4 +908,18 @@ export class AdminService {
       text: q.text,
     });
   }
+}
+
+/** Trims rubric lines and drops empties; an empty rubric is stored as null. */
+function cleanRubric(r: UpdateQuestionDto['rubric']): QuestionRubric | null {
+  if (!r) return null;
+  const lines = (xs: string[]) => xs.map((x) => x.trim()).filter(Boolean);
+  const out = {
+    examinerPoints: lines(r.examinerPoints),
+    keyFacts: lines(r.keyFacts),
+    modelAnswer: r.modelAnswer?.trim() || null,
+  };
+  return out.examinerPoints.length || out.keyFacts.length || out.modelAnswer
+    ? out
+    : null;
 }
